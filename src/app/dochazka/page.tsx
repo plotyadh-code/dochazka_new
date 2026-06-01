@@ -53,9 +53,10 @@ export default async function DochazkaPage() {
                       <p className="text-xs text-gray-500 mt-0.5">
                         {record.time_from} – {record.time_to} · přestávka {record.break_minutes} min
                       </p>
-                      {record.location && (
-                        <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>
-                      )}
+                      {record.location === 'DOVOLENÁ'
+                        ? <span className="inline-block text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mt-0.5">Dovolená</span>
+                        : record.location && <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>
+                      }
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">{Number(record.hours_worked).toFixed(2)}h</p>

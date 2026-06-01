@@ -19,11 +19,25 @@ export default function AttendanceForm({ employeeId }: Props) {
   const [timeTo, setTimeTo] = useState('16:00')
   const [breakMinutes, setBreakMinutes] = useState<0 | 30 | 60>(30)
   const [location, setLocation] = useState('')
+  const [isVacation, setIsVacation] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  function handleVacationChange(checked: boolean) {
+    setIsVacation(checked)
+    if (checked) {
+      setTimeFrom('07:00')
+      setTimeTo('15:00')
+      setBreakMinutes(0)
+    } else {
+      setTimeFrom('06:30')
+      setTimeTo('16:00')
+      setBreakMinutes(30)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -48,10 +62,10 @@ export default function AttendanceForm({ employeeId }: Props) {
       {
         employee_id: employeeId,
         date,
-        time_from: timeFrom,
-        time_to: timeTo,
-        break_minutes: breakMinutes,
-        location: location || null,
+        time_from: isVacation ? '07:00' : timeFrom,
+        time_to: isVacation ? '15:00' : timeTo,
+        break_minutes: isVacation ? 0 : breakMinutes,
+        location: isVacation ? 'DOVOLENÁ' : (location || null),
         submitted_at: new Date().toISOString(),
         auto_filled: false,
       },
@@ -70,6 +84,7 @@ export default function AttendanceForm({ employeeId }: Props) {
     setTimeTo('16:00')
     setBreakMinutes(30)
     setLocation('')
+    setIsVacation(false)
     setLoading(false)
     router.refresh()
   }
@@ -95,20 +110,22 @@ export default function AttendanceForm({ employeeId }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Od</label>
             <input
               type="time"
-              value={timeFrom}
+              value={isVacation ? '07:00' : timeFrom}
               onChange={(e) => setTimeFrom(e.target.value)}
-              className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
+              disabled={isVacation}
+              className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+              required={!isVacation}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Do</label>
             <input
               type="time"
-              value={timeTo}
+              value={isVacation ? '15:00' : timeTo}
               onChange={(e) => setTimeTo(e.target.value)}
-              className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
+              disabled={isVacation}
+              className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+              required={!isVacation}
             />
           </div>
         </div>
@@ -120,11 +137,12 @@ export default function AttendanceForm({ employeeId }: Props) {
               <button
                 key={val}
                 type="button"
-                onClick={() => setBreakMinutes(val)}
+                onClick={() => !isVacation && setBreakMinutes(val)}
+                disabled={isVacation}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  breakMinutes === val
+                  (isVacation ? 0 : breakMinutes) === val
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
                 {val === 0 ? 'Žádná' : val === 30 ? '30 min' : '1 hod'}
@@ -137,15 +155,33 @@ export default function AttendanceForm({ employeeId }: Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Místo výkonu práce</label>
           <input
             type="text"
-            value={location}
+            value={isVacation ? 'DOVOLENÁ' : location}
             onChange={(e) => setLocation(e.target.value)}
-            className="w-full max-w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isVacation}
+            className="w-full max-w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-orange-50 disabled:text-orange-600 disabled:border-orange-200 disabled:font-medium"
             placeholder="např. Praha, Brno, home office..."
           />
         </div>
 
+        <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
+          isVacation
+            ? 'border-orange-300 bg-orange-50'
+            : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50/50'
+        }`}>
+          <input
+            type="checkbox"
+            checked={isVacation}
+            onChange={e => handleVacationChange(e.target.checked)}
+            className="w-4 h-4 rounded accent-orange-500"
+          />
+          <span className={`text-sm font-medium ${isVacation ? 'text-orange-700' : 'text-gray-700'}`}>
+            Dovolená
+          </span>
+          <span className="text-xs text-gray-400 ml-auto">7:00–15:00, 8 hod</span>
+        </label>
+
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        {success && <p className="text-green-600 text-sm">✓ Docházka byla zapsána!</p>}
+        {success && <p className="text-green-600 text-sm">Docházka byla zapsána!</p>}
 
         <button
           type="submit"

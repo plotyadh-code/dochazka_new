@@ -144,6 +144,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       const r = recordMap.get(dateStr)
       const isWe = isWeekend(day)
 
+      const isVacRow = r?.location === 'DOVOLENÁ'
+
       const row = ws.addRow({
         datum: dateLabel(day),
         den: CZECH_DAYS[day.getDay()],
@@ -152,12 +154,15 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         prestav: r !== undefined ? r.break_minutes : '',
         odprac: r ? Number(r.hours_worked).toFixed(2) : '',
         presac: r ? fmtOvertime(r.overtime) : '',
-        misto: r?.location ?? '',
+        misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
-        typ: isWe ? 'Víkend' : 'Pracovní den',
+        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : 'Pracovní den',
       })
 
-      if (isWe) {
+      if (isVacRow) {
+        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFCC99' } }
+        row.font = { bold: true, color: { argb: 'FF7D4E00' } }
+      } else if (isWe) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }
         row.font = { color: { argb: 'FF777777' } }
       } else if (!r) {
@@ -306,11 +311,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
               const record = recordMap.get(dateStr)
               const isWe = isWeekend(day)
               const isHol = isHoliday(dateStr, holidays)
+              const isVac = record?.location === 'DOVOLENÁ'
               const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
               return (
                 <tr
                   key={dateStr}
-                  className={`${isWe || isHol ? 'bg-gray-50 text-gray-400' : !record ? 'bg-yellow-50' : ''}`}
+                  className={`${isWe || isHol ? 'bg-gray-50 text-gray-400' : isVac ? 'bg-orange-50' : !record ? 'bg-yellow-50' : ''}`}
                 >
                   <td className="px-3 py-2 font-medium whitespace-nowrap">
                     {dateLabel(day)}{isHol && !isWe ? ' 🗓' : ''}
@@ -323,7 +329,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                   <td className={`px-3 py-2 font-medium ${record ? (effOt >= 0 ? 'text-green-600' : 'text-red-500') : ''}`}>
                     {record ? `${fmtOvertime(effOt)}h` : '—'}
                   </td>
-                  <td className="px-3 py-2 text-gray-500 max-w-32 truncate">{record?.location ?? '—'}</td>
+                  <td className="px-3 py-2 text-gray-500 max-w-32 truncate">
+                    {isVac
+                      ? <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">Dovolená</span>
+                      : (record?.location ?? '—')
+                    }
+                  </td>
                   <td className="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">
                     {record?.submitted_at
                       ? new Date(record.submitted_at).toLocaleString('cs-CZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -363,6 +374,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           const record = recordMap.get(dateStr)
           const isWe = isWeekend(day)
           const isHol = isHoliday(dateStr, holidays)
+          const isVac = record?.location === 'DOVOLENÁ'
           const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
 
           if ((isWe || isHol) && !record) {
@@ -375,7 +387,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           }
 
           return (
-            <div key={dateStr} className={`rounded-lg border px-4 py-3 ${!record && !isWe && !isHol ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
+            <div key={dateStr} className={`rounded-lg border px-4 py-3 ${isVac ? 'bg-orange-50 border-orange-200' : !record && !isWe && !isHol ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-medium text-sm">
@@ -389,7 +401,10 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                   ) : (
                     <p className="text-xs text-orange-400 mt-0.5">Nezapsáno</p>
                   )}
-                  {record?.location && <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>}
+                  {isVac
+                    ? <span className="inline-block text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mt-0.5">Dovolená</span>
+                    : record?.location && <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>
+                  }
                 </div>
                 <div className="flex items-center gap-3">
                   {record && (
