@@ -62,6 +62,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   const [noteSaving, setNoteSaving] = useState(false)
   const [noteSaved, setNoteSaved] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  const [modeError, setModeError] = useState<string | null>(null)
   const days = getDaysInMonth(year, month)
 
   const recordMap = new Map<string, AttendanceRecord>()
@@ -99,9 +100,15 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   }
 
   function handleModeChange(newMode: 'pay' | 'carry') {
+    const previousMode = mode
     setMode(newMode)
+    setModeError(null)
     startTransition(async () => {
-      await setOvertimeMode(employeeId, year, month, newMode, carriedIn)
+      const result = await setOvertimeMode(employeeId, year, month, newMode, carriedIn)
+      if (result && 'error' in result) {
+        setMode(previousMode)
+        setModeError(`Nepodařilo se uložit: ${result.error}`)
+      }
     })
   }
 
@@ -494,6 +501,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
             Převést do {CZECH_MONTHS[nextMonth.month - 1]}
           </button>
           {isPending && <span className="text-xs text-gray-400">Ukládám...</span>}
+          {modeError && <span className="text-xs text-red-600">{modeError}</span>}
         </div>
       </div>
 

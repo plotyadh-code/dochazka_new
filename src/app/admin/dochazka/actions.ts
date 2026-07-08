@@ -83,24 +83,27 @@ export async function setOvertimeMode(
   const nextYear = month === 12 ? year + 1 : year
   const nextMonth = month === 12 ? 1 : month + 1
 
-  const { data: existing } = await supabase
+  const { data: existingNext } = await supabase
     .from('monthly_overtime')
-    .select('id')
+    .select('mode')
     .eq('employee_id', employeeId)
     .eq('year', nextYear)
     .eq('month', nextMonth)
     .maybeSingle()
 
-  if (existing) {
-    await supabase
-      .from('monthly_overtime')
-      .update({ carried_in: mode === 'carry' ? balance : 0 })
-      .eq('id', existing.id)
-  } else {
-    await supabase
-      .from('monthly_overtime')
-      .insert({ employee_id: employeeId, year: nextYear, month: nextMonth, mode: 'pay', carried_in: mode === 'carry' ? balance : 0 })
-  }
+  const { error: e2 } = await supabase
+    .from('monthly_overtime')
+    .upsert(
+      {
+        employee_id: employeeId,
+        year: nextYear,
+        month: nextMonth,
+        mode: existingNext?.mode ?? 'pay',
+        carried_in: mode === 'carry' ? balance : 0,
+      },
+      { onConflict: 'employee_id,year,month' }
+    )
+  if (e2) return { error: e2.message }
 
   revalidatePath(`/admin/dochazka/${employeeId}`)
   return { success: true }
