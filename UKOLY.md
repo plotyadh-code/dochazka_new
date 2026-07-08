@@ -34,6 +34,13 @@
 - Sloupec `auto_filled` v `attendance_records` — zaměstnanec může přepsat automaticky vyplněný den, ale ne svůj již odeslaný záznam (migrace: 003_auto_filled.sql)
 - Oprava výpočtu přesčasů při převodu do dalšího měsíce — víkendy a svátky se nyní počítají správně (všechny hodiny jako přesčas)
 
+## Hotovo (2026-07-08) ✅
+- Oprava: poznámka k měsíci (`saveMonthNote`) se ukládala neatomicky (select → insert/update) — při souběžném přístupu více lidí z různých PC pod stejným admin účtem mohl druhý zápis tiše selhat na unique constraintu bez chybové hlášky. Přepsáno na atomický `upsert`, chyba se teď zobrazí u pole Poznámka.
+- Oprava: stejná race condition byla i v `setOvertimeMode` při zápisu převedených hodin do řádku dalšího měsíce — opraveno stejným způsobem (atomický upsert), tlačítko Proplatit/Převést se navíc při selhání vrátí do původního stavu a zobrazí chybu.
+- Oprava: Excel export počítal přesčas u víkendů/svátků ze surového sloupce `overtime` (odpracováno − 8h) místo správné logiky jako na webu (celé hodiny navíc). Opraveno.
+- Oprava: Excel export zapisoval hodiny jako text (`.toFixed(2)`) — Excel je bral jako text, nešlo s nimi počítat. Teď se zapisují jako skutečná čísla s formátem, zobrazí se s čárkou dle českého nastavení Excelu a jde s nimi počítat (SUMA apod.).
+- Excel export: přidán/přepočítán souhrn přesčasu — řádek "Převedeno z [měsíc]" je vždy před řádkem CELKEM (i s hodnotou 0), CELKEM v přesčasu ukazuje, co ještě zbývá dorovnat po započtení převodu (0, pokud převod schodek pokryl), řádek "Zůstatek na konci měsíce" ukazuje kladný kredit přenášený do dalšího měsíce.
+
 ## Další kroky 🟡
 
 ### 3. Archivace dokumentů (Excel)

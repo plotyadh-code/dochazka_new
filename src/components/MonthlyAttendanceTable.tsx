@@ -196,8 +196,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     ws.mergeCells(`A${carryRow.number}:F${carryRow.number}`)
     carryRow.font = { bold: true }
 
-    // Řádek CELKEM — přesčas po zohlednění převodu: kolik ještě zbývá dorovnat (záporné), 0 pokud převod schodek pokryl
-    const remainingDeficit = Math.min(totalBalance, 0)
+    // Řádek CELKEM — u "Proplatit" skutečný přesčas za měsíc, u "Převést" kolik ještě zbývá dorovnat po převodu (0 pokud kredit pokryl schodek)
+    const remainingDeficit = mode === 'carry' ? Math.min(totalBalance, 0) : totalOvertime
     const totalRow = ws.addRow({
       datum: 'CELKEM',
       den: '',
@@ -221,8 +221,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       }
     })
 
-    // Zůstatek — kredit přenášený do dalšího měsíce (kladná část zůstatku, 0 pokud je zůstatek v mínusu)
-    const remainingCredit = Math.max(totalBalance, 0)
+    // Zůstatek — kredit přenášený do dalšího měsíce; u "Proplatit" se nic nepřevádí (0), u "Převést" kladná část zůstatku
+    const remainingCredit = mode === 'carry' ? Math.max(totalBalance, 0) : 0
     const balanceRow = ws.addRow({
       datum: 'Zůstatek přesčasu na konci měsíce (po převodu)',
       presac: remainingCredit,
