@@ -61,6 +61,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   const [noteText, setNoteText] = useState(note)
   const [noteSaving, setNoteSaving] = useState(false)
   const [noteSaved, setNoteSaved] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
   const days = getDaysInMonth(year, month)
 
   const recordMap = new Map<string, AttendanceRecord>()
@@ -116,8 +117,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       { header: 'Od', key: 'od', width: 8 },
       { header: 'Do', key: 'do_', width: 8 },
       { header: 'Přestávka (min)', key: 'prestav', width: 17 },
-      { header: 'Odpracováno (h)', key: 'odprac', width: 17 },
-      { header: 'Přesčas (h)', key: 'presac', width: 13 },
+      { header: 'Odpracováno (h)', key: 'odprac', width: 17, style: { numFmt: '0.00' } },
+      { header: 'Přesčas (h)', key: 'presac', width: 13, style: { numFmt: '+0.00;-0.00;0.00' } },
       { header: 'Místo práce', key: 'misto', width: 25 },
       { header: 'Čas zápisu', key: 'zapis', width: 20 },
       { header: 'Typ dne', key: 'typ', width: 14 },
@@ -151,9 +152,9 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         den: CZECH_DAYS[day.getDay()],
         od: r?.time_from?.slice(0, 5) ?? '',
         do_: r?.time_to?.slice(0, 5) ?? '',
-        prestav: r !== undefined ? r.break_minutes : '',
-        odprac: r ? Number(r.hours_worked).toFixed(2) : '',
-        presac: r ? fmtOvertime(r.overtime) : '',
+        prestav: r !== undefined ? r.break_minutes : null,
+        odprac: r ? Number(r.hours_worked) : null,
+        presac: r ? effectiveOvertime(r, dateStr, day) : null,
         misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
         typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : 'Pracovní den',
@@ -185,9 +186,9 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       den: '',
       od: '',
       do_: '',
-      prestav: '',
-      odprac: totalHours.toFixed(2),
-      presac: fmtOvertime(totalOvertime),
+      prestav: null,
+      odprac: totalHours,
+      presac: totalOvertime,
       misto: employee.name,
       zapis: `${CZECH_MONTHS[month - 1]} ${year}`,
       typ: '',
@@ -202,6 +203,24 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         right: { style: 'thin' },
       }
     })
+
+    // Souhrn přesčasu vč. převodu z minulého měsíce (pro účetní)
+    ws.addRow({})
+    const carryRow = ws.addRow({
+      datum: `Převedeno z ${CZECH_MONTHS[prevMonth.month - 1]} ${prevMonth.year}`,
+      presac: carriedIn,
+    })
+    ws.mergeCells(`A${carryRow.number}:F${carryRow.number}`)
+    carryRow.font = { bold: true }
+
+    const balanceRow = ws.addRow({
+      datum: 'Zůstatek přesčasu na konci měsíce (po převodu)',
+      presac: totalBalance,
+    })
+    ws.mergeCells(`A${balanceRow.number}:F${balanceRow.number}`)
+    balanceRow.font = { bold: true, size: 12 }
+    balanceRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE8CC' } }
+    balanceRow.getCell('presac').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE8CC' } }
 
     const buffer = await wb.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -218,8 +237,13 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   async function handleNoteSave() {
     if (noteText === note) return
     setNoteSaving(true)
-    await saveMonthNote(employeeId, year, month, noteText)
+    setNoteError(null)
+    const result = await saveMonthNote(employeeId, year, month, noteText)
     setNoteSaving(false)
+    if (result && 'error' in result) {
+      setNoteError(`Poznámku se nepodařilo uložit: ${result.error}`)
+      return
+    }
     setNoteSaved(true)
     setTimeout(() => setNoteSaved(false), 2000)
   }
@@ -479,6 +503,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           <span className="text-sm font-medium text-gray-700">Poznámka</span>
           {noteSaving && <span className="text-xs text-gray-400">Ukládám...</span>}
           {noteSaved && <span className="text-xs text-green-600">Uloženo</span>}
+          {noteError && <span className="text-xs text-red-600">{noteError}</span>}
         </div>
         <textarea
           value={noteText}

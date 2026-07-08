@@ -111,24 +111,26 @@ export async function saveMonthNote(employeeId: string, year: number, month: num
 
   const { data: existing } = await supabase
     .from('monthly_overtime')
-    .select('id')
+    .select('mode, carried_in')
     .eq('employee_id', employeeId)
     .eq('year', year)
     .eq('month', month)
     .maybeSingle()
 
-  if (existing) {
-    const { error } = await supabase
-      .from('monthly_overtime')
-      .update({ note })
-      .eq('id', existing.id)
-    if (error) return { error: error.message }
-  } else {
-    const { error } = await supabase
-      .from('monthly_overtime')
-      .insert({ employee_id: employeeId, year, month, note, mode: 'pay', carried_in: 0 })
-    if (error) return { error: error.message }
-  }
+  const { error } = await supabase
+    .from('monthly_overtime')
+    .upsert(
+      {
+        employee_id: employeeId,
+        year,
+        month,
+        note,
+        mode: existing?.mode ?? 'pay',
+        carried_in: existing?.carried_in ?? 0,
+      },
+      { onConflict: 'employee_id,year,month' }
+    )
+  if (error) return { error: error.message }
 
   revalidatePath(`/admin/dochazka/${employeeId}`)
   return { success: true }
