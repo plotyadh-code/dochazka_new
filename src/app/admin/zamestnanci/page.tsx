@@ -5,6 +5,8 @@ import PasswordCell from '@/components/PasswordCell'
 import Link from 'next/link'
 import type { Profile } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ZamestnnaciPage() {
   const supabase = await createClient()
 

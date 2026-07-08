@@ -5,6 +5,8 @@ import LogoutButton from '@/components/LogoutButton'
 import MonthlyAttendanceTable from '@/components/MonthlyAttendanceTable'
 import type { Profile, AttendanceRecord } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 type Props = {
   params: Promise<{ id: string }>
   searchParams: Promise<{ month?: string; year?: string }>

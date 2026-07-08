@@ -3,6 +3,8 @@ import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import type { Profile } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminDochazkaPage() {
   const supabase = await createClient()
 
