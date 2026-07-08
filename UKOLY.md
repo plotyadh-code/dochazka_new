@@ -40,6 +40,8 @@
 - Oprava: Excel export počítal přesčas u víkendů/svátků ze surového sloupce `overtime` (odpracováno − 8h) místo správné logiky jako na webu (celé hodiny navíc). Opraveno.
 - Oprava: Excel export zapisoval hodiny jako text (`.toFixed(2)`) — Excel je bral jako text, nešlo s nimi počítat. Teď se zapisují jako skutečná čísla s formátem, zobrazí se s čárkou dle českého nastavení Excelu a jde s nimi počítat (SUMA apod.).
 - Excel export: přidán/přepočítán souhrn přesčasu — řádek "Převedeno z [měsíc]" je vždy před řádkem CELKEM (i s hodnotou 0), CELKEM v přesčasu ukazuje, co ještě zbývá dorovnat po započtení převodu (0, pokud převod schodek pokryl), řádek "Zůstatek na konci měsíce" ukazuje kladný kredit přenášený do dalšího měsíce.
+- Oprava: souhrn v Excelu se počítal stejně bez ohledu na zvolený režim. Teď u "Proplatit" CELKEM ukazuje skutečný přesčas za měsíc a Zůstatek je 0 (nic se nepřevádí), u "Převést" CELKEM ukazuje zbývající schodek po převodu a Zůstatek kredit přenášený dál.
+- Oprava: admin stránky (docházka detail, docházka list, zaměstnanci) označeny `force-dynamic` + globálně vypnutý Next.js client router cache (`staleTimes.dynamic = 0`) — jiný admin už neuvidí starší zobrazení (např. starý režim Proplatit/Převést) kvůli cachování stránky.
 
 ## Další kroky 🟡
 
