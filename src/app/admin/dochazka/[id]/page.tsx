@@ -71,6 +71,7 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
         </div>
 
         <MonthlyAttendanceTable
+          key={`${year}-${month}`}
           employee={employee as Profile}
           records={(records ?? []) as AttendanceRecord[]}
           year={year}
