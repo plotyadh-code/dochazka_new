@@ -43,6 +43,10 @@
 - Oprava: souhrn v Excelu se počítal stejně bez ohledu na zvolený režim. Teď u "Proplatit" CELKEM ukazuje skutečný přesčas za měsíc a Zůstatek je 0 (nic se nepřevádí), u "Převést" CELKEM ukazuje zbývající schodek po převodu a Zůstatek kredit přenášený dál.
 - Oprava: admin stránky (docházka detail, docházka list, zaměstnanci) označeny `force-dynamic` + globálně vypnutý Next.js client router cache (`staleTimes.dynamic = 0`) — jiný admin už neuvidí starší zobrazení (např. starý režim Proplatit/Převést) kvůli cachování stránky.
 
+## Hotovo (2026-07-21) ✅
+- Nový režim **Nemocenská** (checkbox vedle Dovolené, vzájemně se vylučují): výchozí stav 0 hodin (Od = Do), ale na rozdíl od Dovolené zůstávají pole Od/Do i Místo práce editovatelná — jde tedy zapsat i skutečně odpracovaný čas, pokud zaměstnanec během neschopenky pracoval (např. z domova). Odpracované hodiny se pak počítají celé jako přesčas, stejně jako u víkendu/svátku (nový sloupec `is_sick` v `attendance_records`, migrace `005_sick_leave.sql`). Zvýrazněno fialově v tabulce, na mobilu i v Excel exportu (typ dne "Nemocenská").
+- Oprava: v admin měsíčním přehledu (`MonthlyAttendanceTable`) se poznámka k měsíci a zvolený režim přesčasu (Proplatit/Převést) držely ve stavu komponenty, který se při přepnutí měsíce šipkami nevynuloval — po přechodu na jiný měsíc chvíli zůstával viditelný text/režim z předchozího měsíce a při uložení by se mohl omylem zapsat pod špatný měsíc. Opraveno přidáním `key` podle roku/měsíce, který vynutí čistý remount komponenty při každé změně měsíce.
+
 ## Další kroky 🟡
 
 ### 3. Archivace dokumentů (Excel)
