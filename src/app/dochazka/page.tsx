@@ -55,6 +55,8 @@ export default async function DochazkaPage() {
                       </p>
                       {record.location === 'DOVOLENÁ'
                         ? <span className="inline-block text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mt-0.5">Dovolená</span>
+                        : record.is_sick
+                        ? <span className="inline-block text-xs font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded mt-0.5">Nemocenská{record.location ? ` · ${record.location}` : ''}</span>
                         : record.location && <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>
                       }
                     </div>

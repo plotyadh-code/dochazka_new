@@ -10,7 +10,10 @@
       "Bash(shopt -u dotglob)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npm uninstall *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)"
     ]
   }
 }

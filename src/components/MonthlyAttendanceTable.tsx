@@ -74,7 +74,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   const holidays = getCzechHolidays(year)
 
   function effectiveOvertime(record: AttendanceRecord, dateStr: string, date: Date): number {
-    if (isWeekend(date) || isHoliday(dateStr, holidays)) {
+    if (isWeekend(date) || isHoliday(dateStr, holidays) || record.is_sick) {
       return Number(record.hours_worked)
     }
     return Number(record.overtime)
@@ -153,6 +153,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       const isWe = isWeekend(day)
 
       const isVacRow = r?.location === 'DOVOLENÁ'
+      const isSickRow = r?.is_sick ?? false
 
       const row = ws.addRow({
         datum: dateLabel(day),
@@ -164,12 +165,15 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         presac: r ? effectiveOvertime(r, dateStr, day) : null,
         misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
-        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : 'Pracovní den',
+        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : 'Pracovní den',
       })
 
       if (isVacRow) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFCC99' } }
         row.font = { bold: true, color: { argb: 'FF7D4E00' } }
+      } else if (isSickRow) {
+        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0CCFF' } }
+        row.font = { bold: true, color: { argb: 'FF5B2E9E' } }
       } else if (isWe) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }
         row.font = { color: { argb: 'FF777777' } }
@@ -346,11 +350,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
               const isWe = isWeekend(day)
               const isHol = isHoliday(dateStr, holidays)
               const isVac = record?.location === 'DOVOLENÁ'
+              const isSick = record?.is_sick ?? false
               const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
               return (
                 <tr
                   key={dateStr}
-                  className={`${isWe || isHol ? 'bg-gray-50 text-gray-400' : isVac ? 'bg-orange-50' : !record ? 'bg-yellow-50' : ''}`}
+                  className={`${isWe || isHol ? 'bg-gray-50 text-gray-400' : isVac ? 'bg-orange-50' : isSick ? 'bg-purple-50' : !record ? 'bg-yellow-50' : ''}`}
                 >
                   <td className="px-3 py-2 font-medium whitespace-nowrap">
                     {dateLabel(day)}{isHol && !isWe ? ' 🗓' : ''}
@@ -366,6 +371,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                   <td className="px-3 py-2 text-gray-500 max-w-32 truncate">
                     {isVac
                       ? <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">Dovolená</span>
+                      : isSick
+                      ? <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Nemocenská{record?.location ? ` · ${record.location}` : ''}</span>
                       : (record?.location ?? '—')
                     }
                   </td>
@@ -409,6 +416,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           const isWe = isWeekend(day)
           const isHol = isHoliday(dateStr, holidays)
           const isVac = record?.location === 'DOVOLENÁ'
+          const isSick = record?.is_sick ?? false
           const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
 
           if ((isWe || isHol) && !record) {
@@ -421,7 +429,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           }
 
           return (
-            <div key={dateStr} className={`rounded-lg border px-4 py-3 ${isVac ? 'bg-orange-50 border-orange-200' : !record && !isWe && !isHol ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
+            <div key={dateStr} className={`rounded-lg border px-4 py-3 ${isVac ? 'bg-orange-50 border-orange-200' : isSick ? 'bg-purple-50 border-purple-200' : !record && !isWe && !isHol ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-medium text-sm">
@@ -437,6 +445,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                   )}
                   {isVac
                     ? <span className="inline-block text-xs font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mt-0.5">Dovolená</span>
+                    : isSick
+                    ? <span className="inline-block text-xs font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded mt-0.5">Nemocenská{record?.location ? ` · ${record.location}` : ''}</span>
                     : record?.location && <p className="text-xs text-gray-400 mt-0.5">{record.location}</p>
                   }
                 </div>

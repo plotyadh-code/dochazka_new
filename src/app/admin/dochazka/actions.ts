@@ -11,6 +11,7 @@ export async function upsertAttendanceRecord(formData: FormData) {
   const time_to = formData.get('time_to') as string
   const break_minutes = parseInt(formData.get('break_minutes') as string, 10)
   const location = (formData.get('location') as string).trim() || null
+  const is_sick = formData.get('is_sick') === 'true'
 
   if (!employee_id || !date || !time_from || !time_to) {
     return { error: 'Vyplňte všechna povinná pole' }
@@ -23,7 +24,7 @@ export async function upsertAttendanceRecord(formData: FormData) {
   const { error } = await supabase
     .from('attendance_records')
     .upsert(
-      { employee_id, date, time_from, time_to, break_minutes, location, submitted_at: new Date().toISOString() },
+      { employee_id, date, time_from, time_to, break_minutes, location, is_sick, submitted_at: new Date().toISOString() },
       { onConflict: 'employee_id,date' }
     )
 
@@ -63,7 +64,7 @@ export async function setOvertimeMode(
 
   const { data: records } = await supabase
     .from('attendance_records')
-    .select('date, overtime, hours_worked')
+    .select('date, overtime, hours_worked, is_sick')
     .eq('employee_id', employeeId)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -73,7 +74,7 @@ export async function setOvertimeMode(
     const d = new Date(r.date + 'T00:00:00')
     const dow = d.getDay()
     const weekend = dow === 0 || dow === 6
-    const effective = (weekend || isHoliday(r.date, holidays))
+    const effective = (weekend || isHoliday(r.date, holidays) || r.is_sick)
       ? Number(r.hours_worked)
       : Number(r.overtime)
     return s + effective

@@ -20,6 +20,7 @@ export default function AttendanceForm({ employeeId }: Props) {
   const [breakMinutes, setBreakMinutes] = useState<0 | 30 | 60>(30)
   const [location, setLocation] = useState('')
   const [isVacation, setIsVacation] = useState(false)
+  const [isSick, setIsSick] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -29,8 +30,23 @@ export default function AttendanceForm({ employeeId }: Props) {
   function handleVacationChange(checked: boolean) {
     setIsVacation(checked)
     if (checked) {
+      setIsSick(false)
       setTimeFrom('07:00')
       setTimeTo('15:00')
+      setBreakMinutes(0)
+    } else {
+      setTimeFrom('06:30')
+      setTimeTo('16:00')
+      setBreakMinutes(30)
+    }
+  }
+
+  function handleSickChange(checked: boolean) {
+    setIsSick(checked)
+    if (checked) {
+      setIsVacation(false)
+      setTimeFrom('07:00')
+      setTimeTo('07:00')
       setBreakMinutes(0)
     } else {
       setTimeFrom('06:30')
@@ -66,6 +82,7 @@ export default function AttendanceForm({ employeeId }: Props) {
         time_to: isVacation ? '15:00' : timeTo,
         break_minutes: isVacation ? 0 : breakMinutes,
         location: isVacation ? 'DOVOLENÁ' : (location || null),
+        is_sick: isSick,
         submitted_at: new Date().toISOString(),
         auto_filled: false,
       },
@@ -85,6 +102,7 @@ export default function AttendanceForm({ employeeId }: Props) {
     setBreakMinutes(30)
     setLocation('')
     setIsVacation(false)
+    setIsSick(false)
     setLoading(false)
     router.refresh()
   }
@@ -159,7 +177,7 @@ export default function AttendanceForm({ employeeId }: Props) {
             onChange={(e) => setLocation(e.target.value)}
             disabled={isVacation}
             className="w-full max-w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-orange-50 disabled:text-orange-600 disabled:border-orange-200 disabled:font-medium"
-            placeholder="např. Praha, Brno, home office..."
+            placeholder={isSick ? 'volitelné, např. home office' : 'např. Praha, Brno, home office...'}
           />
         </div>
 
@@ -178,6 +196,23 @@ export default function AttendanceForm({ employeeId }: Props) {
             Dovolená
           </span>
           <span className="text-xs text-gray-400 ml-auto">7:00–15:00, 8 hod</span>
+        </label>
+
+        <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
+          isSick
+            ? 'border-purple-300 bg-purple-50'
+            : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+        }`}>
+          <input
+            type="checkbox"
+            checked={isSick}
+            onChange={e => handleSickChange(e.target.checked)}
+            className="w-4 h-4 rounded accent-purple-500"
+          />
+          <span className={`text-sm font-medium ${isSick ? 'text-purple-700' : 'text-gray-700'}`}>
+            Nemocenská
+          </span>
+          <span className="text-xs text-gray-400 ml-auto">0 hod, jde-li se pracovat, počítá se jako přesčas</span>
         </label>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}

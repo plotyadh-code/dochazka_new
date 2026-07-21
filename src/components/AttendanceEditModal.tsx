@@ -19,6 +19,7 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
 
   const initVacation = record?.location === 'DOVOLENÁ'
   const [isVacation, setIsVacation] = useState(initVacation)
+  const [isSick, setIsSick] = useState(record?.is_sick ?? false)
   const [timeFrom, setTimeFrom] = useState(record?.time_from?.slice(0, 5) ?? '07:00')
   const [timeTo, setTimeTo] = useState(record?.time_to?.slice(0, 5) ?? '16:00')
   const [breakMinutes, setBreakMinutes] = useState<number>(initVacation ? 30 : (record?.break_minutes ?? 30))
@@ -34,8 +35,24 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
   function handleVacationChange(checked: boolean) {
     setIsVacation(checked)
     if (checked) {
+      setIsSick(false)
       setTimeFrom('07:00')
       setTimeTo('15:00')
+      setBreakMinutes(0)
+    } else {
+      setTimeFrom(origValues.timeFrom)
+      setTimeTo(origValues.timeTo)
+      setBreakMinutes(origValues.breakMinutes)
+      setLocation(origValues.location)
+    }
+  }
+
+  function handleSickChange(checked: boolean) {
+    setIsSick(checked)
+    if (checked) {
+      setIsVacation(false)
+      setTimeFrom('07:00')
+      setTimeTo('07:00')
       setBreakMinutes(0)
     } else {
       setTimeFrom(origValues.timeFrom)
@@ -62,6 +79,7 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
       formData.set('break_minutes', String(breakMinutes))
       formData.set('location', location)
     }
+    formData.set('is_sick', String(isSick))
     startTransition(async () => {
       const result = await upsertAttendanceRecord(formData)
       if (result.error) setError(result.error)
@@ -155,6 +173,23 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
               Dovolená
             </span>
             <span className="text-xs text-gray-400 ml-auto">7:00–15:00, 8 hod</span>
+          </label>
+
+          <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
+            isSick
+              ? 'border-purple-300 bg-purple-50'
+              : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+          }`}>
+            <input
+              type="checkbox"
+              checked={isSick}
+              onChange={e => handleSickChange(e.target.checked)}
+              className="w-4 h-4 rounded accent-purple-500"
+            />
+            <span className={`text-sm font-medium ${isSick ? 'text-purple-700' : 'text-gray-700'}`}>
+              Nemocenská
+            </span>
+            <span className="text-xs text-gray-400 ml-auto">0 hod, práce navíc = přesčas</span>
           </label>
 
           {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}

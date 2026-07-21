@@ -15,6 +15,7 @@ export type AttendanceRecord = {
   time_to: string
   break_minutes: 0 | 30 | 60
   location: string | null
+  is_sick: boolean
   hours_worked: number
   overtime: number
   submitted_at: string
