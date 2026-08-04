@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import MonthlyAttendanceTable from '@/components/MonthlyAttendanceTable'
-import type { Profile, AttendanceRecord } from '@/types'
+import type { Profile, AttendanceRecord, WorkModeRow } from '@/types'
+import { resolveWorkMode } from '@/lib/workMode'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,13 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
     .eq('month', month)
     .maybeSingle()
 
+  const { data: workModes } = await supabase
+    .from('employee_work_modes')
+    .select('employee_id, year, month, mode')
+    .eq('employee_id', id)
+
+  const workMode = resolveWorkMode((workModes ?? []) as WorkModeRow[], year, month)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-4 py-3 flex justify-between items-center sticky top-0 z-10">
@@ -80,6 +88,7 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
           carriedIn={monthlyOvertime?.carried_in ?? 0}
           overtimeMode={(monthlyOvertime?.mode ?? 'pay') as 'pay' | 'carry'}
           note={monthlyOvertime?.note ?? ''}
+          workMode={workMode}
         />
       </main>
     </div>

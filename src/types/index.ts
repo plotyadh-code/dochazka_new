@@ -1,3 +1,5 @@
+import type { WorkMode } from '@/lib/workMode'
+
 export type Profile = {
   id: string
   name: string
@@ -20,4 +22,11 @@ export type AttendanceRecord = {
   overtime: number
   submitted_at: string
   created_at: string
+}
+
+export type WorkModeRow = {
+  employee_id: string
+  year: number
+  month: number
+  mode: WorkMode
 }

@@ -3,23 +3,28 @@
 import { useState, useTransition } from 'react'
 import { upsertAttendanceRecord, deleteAttendanceRecord } from '@/app/admin/dochazka/actions'
 import type { AttendanceRecord } from '@/types'
+import type { WorkMode } from '@/lib/workMode'
 
 type Props = {
   employeeId: string
   date: string
   dateLabel: string
   record: AttendanceRecord | null
+  workMode: WorkMode
   onClose: () => void
 }
 
-export default function AttendanceEditModal({ employeeId, date, dateLabel, record, onClose }: Props) {
+export default function AttendanceEditModal({ employeeId, date, dateLabel, record, workMode, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const initVacation = record?.location === 'DOVOLENÁ'
+  // Hodinář nemá nárok na dovolenou ani nemocenskou — zapisují se jen odpracované hodiny
+  const isHourly = workMode === 'hourly'
+
+  const initVacation = !isHourly && record?.location === 'DOVOLENÁ'
   const [isVacation, setIsVacation] = useState(initVacation)
-  const [isSick, setIsSick] = useState(record?.is_sick ?? false)
+  const [isSick, setIsSick] = useState(!isHourly && (record?.is_sick ?? false))
   const [timeFrom, setTimeFrom] = useState(record?.time_from?.slice(0, 5) ?? '07:00')
   const [timeTo, setTimeTo] = useState(record?.time_to?.slice(0, 5) ?? '16:00')
   const [breakMinutes, setBreakMinutes] = useState<number>(initVacation ? 30 : (record?.break_minutes ?? 30))
@@ -158,6 +163,13 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
             />
           </div>
 
+          {isHourly && (
+            <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+              Režim Hodinář — zapisují se jen odpracované hodiny. Dovolená ani nemocenská se u tohoto pracovníka nevedou.
+            </p>
+          )}
+
+          {!isHourly && (
           <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
             isVacation
               ? 'border-orange-300 bg-orange-50'
@@ -174,7 +186,9 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
             </span>
             <span className="text-xs text-gray-400 ml-auto">7:00–15:00, 8 hod</span>
           </label>
+          )}
 
+          {!isHourly && (
           <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
             isSick
               ? 'border-purple-300 bg-purple-50'
@@ -191,8 +205,9 @@ export default function AttendanceEditModal({ employeeId, date, dateLabel, recor
             </span>
             <span className="text-xs text-gray-400 ml-auto">0 hod, práce navíc = přesčas</span>
           </label>
+          )}
 
-          {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error &&<p className="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
           <div className="flex gap-2 pt-1">
             {record && !confirmDelete && (

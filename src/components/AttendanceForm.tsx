@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { resolveWorkModeForDate, type WorkModeEntry } from '@/lib/workMode'
 
 type Props = {
   employeeId: string
+  modeEntries: WorkModeEntry[]
 }
 
 function getTodayDate() {
@@ -13,7 +15,7 @@ function getTodayDate() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function AttendanceForm({ employeeId }: Props) {
+export default function AttendanceForm({ employeeId, modeEntries }: Props) {
   const [date, setDate] = useState(getTodayDate())
   const [timeFrom, setTimeFrom] = useState('06:30')
   const [timeTo, setTimeTo] = useState('16:00')
@@ -26,6 +28,12 @@ export default function AttendanceForm({ employeeId }: Props) {
   const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // Režim platný pro zvolené datum — Hodinář zapisuje jen odpracované hodiny,
+  // dovolenou ani nemocenskou nemá
+  const isHourly = resolveWorkModeForDate(modeEntries, date) === 'hourly'
+  const vacation = isHourly ? false : isVacation
+  const sick = isHourly ? false : isSick
 
   function handleVacationChange(checked: boolean) {
     setIsVacation(checked)
@@ -78,11 +86,11 @@ export default function AttendanceForm({ employeeId }: Props) {
       {
         employee_id: employeeId,
         date,
-        time_from: isVacation ? '07:00' : timeFrom,
-        time_to: isVacation ? '15:00' : timeTo,
-        break_minutes: isVacation ? 0 : breakMinutes,
-        location: isVacation ? 'DOVOLENÁ' : (location || null),
-        is_sick: isSick,
+        time_from: vacation ? '07:00' : timeFrom,
+        time_to: vacation ? '15:00' : timeTo,
+        break_minutes: vacation ? 0 : breakMinutes,
+        location: vacation ? 'DOVOLENÁ' : (location || null),
+        is_sick: sick,
         submitted_at: new Date().toISOString(),
         auto_filled: false,
       },
@@ -128,22 +136,22 @@ export default function AttendanceForm({ employeeId }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Od</label>
             <input
               type="time"
-              value={isVacation ? '07:00' : timeFrom}
+              value={vacation ? '07:00' : timeFrom}
               onChange={(e) => setTimeFrom(e.target.value)}
-              disabled={isVacation}
+              disabled={vacation}
               className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-              required={!isVacation}
+              required={!vacation}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Do</label>
             <input
               type="time"
-              value={isVacation ? '15:00' : timeTo}
+              value={vacation ? '15:00' : timeTo}
               onChange={(e) => setTimeTo(e.target.value)}
-              disabled={isVacation}
+              disabled={vacation}
               className="w-full max-w-full appearance-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-              required={!isVacation}
+              required={!vacation}
             />
           </div>
         </div>
@@ -155,10 +163,10 @@ export default function AttendanceForm({ employeeId }: Props) {
               <button
                 key={val}
                 type="button"
-                onClick={() => !isVacation && setBreakMinutes(val)}
-                disabled={isVacation}
+                onClick={() => !vacation && setBreakMinutes(val)}
+                disabled={vacation}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  (isVacation ? 0 : breakMinutes) === val
+                  (vacation ? 0 : breakMinutes) === val
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
@@ -173,14 +181,21 @@ export default function AttendanceForm({ employeeId }: Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Místo výkonu práce</label>
           <input
             type="text"
-            value={isVacation ? 'DOVOLENÁ' : location}
+            value={vacation ? 'DOVOLENÁ' : location}
             onChange={(e) => setLocation(e.target.value)}
-            disabled={isVacation}
+            disabled={vacation}
             className="w-full max-w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-orange-50 disabled:text-orange-600 disabled:border-orange-200 disabled:font-medium"
-            placeholder={isSick ? 'volitelné, např. home office' : 'např. Praha, Brno, home office...'}
+            placeholder={sick ? 'volitelné, např. home office' : 'např. Praha, Brno, home office...'}
           />
         </div>
 
+        {isHourly && (
+          <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+            Zapisuješ jen odpracované hodiny — žádná povinná denní doba ani přesčasy.
+          </p>
+        )}
+
+        {!isHourly && (
         <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
           isVacation
             ? 'border-orange-300 bg-orange-50'
@@ -197,7 +212,9 @@ export default function AttendanceForm({ employeeId }: Props) {
           </span>
           <span className="text-xs text-gray-400 ml-auto">7:00–15:00, 8 hod</span>
         </label>
+        )}
 
+        {!isHourly && (
         <label className={`flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 rounded-lg border transition-colors ${
           isSick
             ? 'border-purple-300 bg-purple-50'
@@ -214,8 +231,9 @@ export default function AttendanceForm({ employeeId }: Props) {
           </span>
           <span className="text-xs text-gray-400 ml-auto">0 hod, jde-li se pracovat, počítá se jako přesčas</span>
         </label>
+        )}
 
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error &&<p className="text-red-500 text-sm">{error}</p>}
         {success && <p className="text-green-600 text-sm">Docházka byla zapsána!</p>}
 
         <button

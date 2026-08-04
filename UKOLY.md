@@ -47,6 +47,14 @@
 - Nový režim **Nemocenská** (checkbox vedle Dovolené, vzájemně se vylučují): výchozí stav 0 hodin (Od = Do), ale na rozdíl od Dovolené zůstávají pole Od/Do i Místo práce editovatelná — jde tedy zapsat i skutečně odpracovaný čas, pokud zaměstnanec během neschopenky pracoval (např. z domova). Odpracované hodiny se pak počítají celé jako přesčas, stejně jako u víkendu/svátku (nový sloupec `is_sick` v `attendance_records`, migrace `005_sick_leave.sql`). Zvýrazněno fialově v tabulce, na mobilu i v Excel exportu (typ dne "Nemocenská").
 - Oprava: v admin měsíčním přehledu (`MonthlyAttendanceTable`) se poznámka k měsíci a zvolený režim přesčasu (Proplatit/Převést) držely ve stavu komponenty, který se při přepnutí měsíce šipkami nevynuloval — po přechodu na jiný měsíc chvíli zůstával viditelný text/režim z předchozího měsíce a při uložení by se mohl omylem zapsat pod špatný měsíc. Opraveno přidáním `key` podle roku/měsíce, který vynutí čistý remount komponenty při každé změně měsíce.
 
+## Hotovo (2026-08-04) ✅
+- Nové **pracovní režimy zaměstnance** — přepínač **Zaměstnanec / Hodinář** (migrace `006_work_mode.sql`, tabulka `employee_work_modes`).
+  - **Zaměstnanec** = beze změny oproti dosavadnímu chování (8 h/den, přesčasy, víkendy a svátky, dovolená, nemocenská, převod přesčasů). Výchozí režim — kdo nemá nic nastaveno, je Zaměstnanec, takže veškerá stávající data zůstávají stejná.
+  - **Hodinář** = brigádníci a lidé, kteří fakturují hodiny. Počítají se jen čisté odpracované hodiny: žádná povinná denní doba, žádný přesčas, žádná pravidla kalendáře (víkend/svátek nemají zvláštní význam), žádný převod hodin, skryté tlačítko „Vyplnit pracovní dny", skrytá Dovolená i Nemocenská, nezapsaný den se nezvýrazňuje žlutě.
+  - **Historie zůstává** — režim se ukládá jako „platí od tohoto měsíce dál". Změna nikdy nepřepíše starší měsíce; pro každý měsíc se použije poslední nastavení, které začíná v něm nebo dřív.
+  - Přepínač je na dvou místech: v seznamu **Zaměstnanci** (platí od aktuálního měsíce dál) a v **měsíčním detailu docházky** (platí od zobrazeného měsíce dál — jde tím opravit i měsíc zpětně, když se na přepnutí zapomnělo). Funguje i u už založených zaměstnanců.
+  - Excel export pro Hodináře: všechny dny v měsíci, sloupce Datum / Den / Od / Do / Přestávka / Odpracováno / Místo práce / Čas zápisu, bez sloupců Přesčas a Typ dne, bez řádků převodu a zůstatku. Na konci CELKEM se součtem hodin a řádek „Odpracovaných dní".
+
 ## Další kroky 🟡
 
 ### 3. Archivace dokumentů (Excel)
@@ -65,5 +73,6 @@
 - Vercel: plotyadh-code's projects
 - Supabase: projekt jxostbtyqvjgpjujkevy (firemní účet)
 - Tabulka profiles má sloupce: id, name, role, email, initial_password, created_at
+- Tabulka `employee_work_modes` (employee_id, year, month, mode) = „od tohoto měsíce platí režim". Prázdné = režim Zaměstnanec.
 - Víkendy a svátky: hodiny se počítají stejně, jen řádek má jinou barvu
 - Přesčasy: data připravuje appka, výpočet nuancí řeší účetní externě

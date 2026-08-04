@@ -1,7 +1,9 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { WorkMode } from '@/lib/workMode'
 
 export async function createEmployee(formData: FormData) {
   const name = formData.get('name') as string
@@ -42,6 +44,39 @@ export async function createEmployee(formData: FormData) {
   }
 
   revalidatePath('/admin/zamestnanci')
+  return { success: true }
+}
+
+/**
+ * Nastaví pracovní režim zaměstnance od zadaného měsíce dál.
+ * Starší měsíce zůstávají beze změny — drží si režim, který u nich platil.
+ */
+export async function setWorkMode(
+  employeeId: string,
+  year: number,
+  month: number,
+  mode: WorkMode
+) {
+  if (!employeeId || !Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return { error: 'Neplatný měsíc' }
+  }
+  if (mode !== 'employee' && mode !== 'hourly') {
+    return { error: 'Neplatný režim' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('employee_work_modes')
+    .upsert(
+      { employee_id: employeeId, year, month, mode, updated_at: new Date().toISOString() },
+      { onConflict: 'employee_id,year,month' }
+    )
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/zamestnanci')
+  revalidatePath(`/admin/dochazka/${employeeId}`)
+  revalidatePath('/dochazka')
   return { success: true }
 }
 
