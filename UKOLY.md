@@ -54,6 +54,7 @@
   - **Historie zůstává** — režim se ukládá jako „platí od tohoto měsíce dál". Změna nikdy nepřepíše starší měsíce; pro každý měsíc se použije poslední nastavení, které začíná v něm nebo dřív.
   - Přepínač je na dvou místech: v seznamu **Zaměstnanci** (platí od aktuálního měsíce dál) a v **měsíčním detailu docházky** (platí od zobrazeného měsíce dál — jde tím opravit i měsíc zpětně, když se na přepnutí zapomnělo). Funguje i u už založených zaměstnanců.
   - Excel export pro Hodináře: všechny dny v měsíci, sloupce Datum / Den / Od / Do / Přestávka / Odpracováno / Místo práce / Čas zápisu, bez sloupců Přesčas a Typ dne, bez řádků převodu a zůstatku. Na konci CELKEM se součtem hodin a řádek „Odpracovaných dní".
+  - Migrace `006_work_mode.sql` spuštěna v Supabase ✅, otestováno lokálně ✅, nasazeno (commit `5e248f8`) ✅
 
 ## Další kroky 🟡
 
@@ -69,7 +70,7 @@
 ## Poznámky
 - Trigger `on_auth_user_created` byl smazán (způsoboval chyby) — profily vytváří app
 - Admin účet: obchod@adh-ploty.cz (heslo v Supabase Auth)
-- GitHub: github.com/plotyadh-code/dochazka_new
+- GitHub: github.com/plotyadh-code/dochazka_new — pushovat vždy pod firemním účtem `plotyadh-code`, ne pod osobním účtem (commit author je nastavený v `git config --local`)
 - Vercel: plotyadh-code's projects
 - Supabase: projekt jxostbtyqvjgpjujkevy (firemní účet)
 - Tabulka profiles má sloupce: id, name, role, email, initial_password, created_at
