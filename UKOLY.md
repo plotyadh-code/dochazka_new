@@ -56,6 +56,17 @@
   - Excel export pro Hodináře: všechny dny v měsíci, sloupce Datum / Den / Od / Do / Přestávka / Odpracováno / Místo práce / Čas zápisu, bez sloupců Přesčas a Typ dne, bez řádků převodu a zůstatku. Na konci CELKEM se součtem hodin a řádek „Odpracovaných dní".
   - Migrace `006_work_mode.sql` spuštěna v Supabase ✅, otestováno lokálně ✅, nasazeno (commit `5e248f8`) ✅
 
+## Hotovo (2026-09-03) ✅
+- **Oprava převodu přesčasů mezi měsíci.** Zůstatek se ukládal jednorázově při kliknutí na „Převést" (`monthly_overtime.carried_in`) — když se pak starší měsíc opravil, další měsíc si držel staré číslo. U Nikoly Šimkové ukazovalo září „Převedeno ze srpna +16.00" místo správných +14.25 (srpen: 16.75 z července − 2.50).
+  - Nový `src/lib/carryover.ts` — jediné místo, kde se počítá přesčas za den, součet za měsíc a řetěz převodů. Zůstatek se **nikde neukládá**, dopočítává se při čtení z celé historie docházky, takže se sám opraví i zpětně.
+  - `setOvertimeMode` ukládá už jen režim, nezapisuje nic do dalšího měsíce. `saveMonthNote` opraven, aby uložením poznámky nepřepsal zděděný režim na „Proplatit".
+  - **Režim „Proplatit / Převést" se dědí dopředu** (poslední nastavení platí dál, stejně jako pracovní režim) — na konci měsíce se už nemusí nic potvrzovat.
+  - Migrace `007_carryover_recalc.sql` spuštěna v Supabase ✅ — smazala prázdné řádky `monthly_overtime`, které vznikaly jako vedlejší efekt klikání a blokovaly by dědění režimu. Nasazeno (commit `a3a05f0`) ✅
+
+## Nalezené, zatím neřešené 🟠
+- Nemocenská se počítá jako přesčas v plné výši odpracovaných hodin (`is_sick` → `hours_worked` místo `overtime`). Zapsaných 8 h na nemocenské přičte +8 h přesčasu místo 0. Ověřit s účetní, jestli je to záměr.
+- Zaměstnanec může měnit docházku přímo z klienta (`AttendanceForm.tsx:85`) bez serverové kontroly oprávnění.
+
 ## Další kroky 🟡
 
 ### 3. Archivace dokumentů (Excel)
@@ -77,3 +88,4 @@
 - Tabulka `employee_work_modes` (employee_id, year, month, mode) = „od tohoto měsíce platí režim". Prázdné = režim Zaměstnanec.
 - Víkendy a svátky: hodiny se počítají stejně, jen řádek má jinou barvu
 - Přesčasy: data připravuje appka, výpočet nuancí řeší účetní externě
+- Tabulka `monthly_overtime` (employee_id, year, month, mode, note): `mode` = „od tohoto měsíce platí Proplatit/Převést", prázdné = Proplatit. Sloupec `carried_in` se **už nepoužívá** (zůstal jen historicky, drží se v něm 0) — zůstatek se počítá v `src/lib/carryover.ts`
