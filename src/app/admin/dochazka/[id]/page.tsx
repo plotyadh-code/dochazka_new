@@ -5,6 +5,7 @@ import LogoutButton from '@/components/LogoutButton'
 import MonthlyAttendanceTable from '@/components/MonthlyAttendanceTable'
 import type { Profile, AttendanceRecord, WorkModeRow } from '@/types'
 import { resolveWorkMode } from '@/lib/workMode'
+import { computeCarriedIn, resolveOvertimeMode, type OvertimeMode, type OvertimeSource } from '@/lib/carryover'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,13 +44,19 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
     .lte('date', endDate)
     .order('date')
 
-  const { data: monthlyOvertime } = await supabase
-    .from('monthly_overtime')
-    .select('mode, carried_in, note')
+  // Celá historie docházky před zobrazeným měsícem — z ní se dopočítá převod.
+  // Díky tomu je zůstatek vždy aktuální, i když se starší měsíc dodatečně opraví.
+  const { data: history } = await supabase
+    .from('attendance_records')
+    .select('date, hours_worked, overtime, is_sick')
     .eq('employee_id', id)
-    .eq('year', year)
-    .eq('month', month)
-    .maybeSingle()
+    .lt('date', startDate)
+    .order('date')
+
+  const { data: overtimeModes } = await supabase
+    .from('monthly_overtime')
+    .select('year, month, mode, note')
+    .eq('employee_id', id)
 
   const { data: workModes } = await supabase
     .from('employee_work_modes')
@@ -57,6 +64,17 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
     .eq('employee_id', id)
 
   const workMode = resolveWorkMode((workModes ?? []) as WorkModeRow[], year, month)
+
+  const modeEntries = (overtimeModes ?? []) as { year: number; month: number; mode: OvertimeMode; note: string | null }[]
+  const carriedIn = computeCarriedIn(
+    (history ?? []) as OvertimeSource[],
+    modeEntries,
+    (workModes ?? []) as WorkModeRow[],
+    year,
+    month
+  )
+  const overtimeMode = resolveOvertimeMode(modeEntries, year, month)
+  const note = modeEntries.find(m => m.year === year && m.month === month)?.note ?? ''
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -85,9 +103,9 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
           year={year}
           month={month}
           employeeId={id}
-          carriedIn={monthlyOvertime?.carried_in ?? 0}
-          overtimeMode={(monthlyOvertime?.mode ?? 'pay') as 'pay' | 'carry'}
-          note={monthlyOvertime?.note ?? ''}
+          carriedIn={carriedIn}
+          overtimeMode={overtimeMode}
+          note={note}
           workMode={workMode}
         />
       </main>

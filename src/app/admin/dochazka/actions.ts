@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
+import { resolveOvertimeMode, type OvertimeModeEntry } from '@/lib/carryover'
 
 export async function upsertAttendanceRecord(formData: FormData) {
   const employee_id = formData.get('employee_id') as string
@@ -41,81 +42,25 @@ export async function deleteAttendanceRecord(id: number, employeeId: string) {
   return { success: true }
 }
 
+/**
+ * Uloží režim přesčasů pro daný měsíc — a nic víc.
+ *
+ * Zůstatek se nikde neukládá, dopočítává se při čtení (viz `@/lib/carryover`),
+ * takže se sám opraví, když se starší měsíc dodatečně změní. Nastavení navíc
+ * platí i pro následující měsíce, dokud ho někdo nezmění — není tedy nutné
+ * na konci každého měsíce znovu klikat na "Převést".
+ */
 export async function setOvertimeMode(
   employeeId: string,
   year: number,
   month: number,
-  mode: 'pay' | 'carry',
-  carriedIn: number
+  mode: 'pay' | 'carry'
 ) {
-  const supabase = await createClient()
-
-  const { error: e1 } = await supabase
-    .from('monthly_overtime')
-    .upsert(
-      { employee_id: employeeId, year, month, mode, carried_in: carriedIn },
-      { onConflict: 'employee_id,year,month' }
-    )
-  if (e1) return { error: e1.message }
-
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-  const lastDay = new Date(year, month, 0).getDate()
-  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-  const { data: records } = await supabase
-    .from('attendance_records')
-    .select('date, overtime, hours_worked, is_sick')
-    .eq('employee_id', employeeId)
-    .gte('date', startDate)
-    .lte('date', endDate)
-
-  const holidays = getCzechHolidays(year)
-  const totalOvertime = (records ?? []).reduce((s, r) => {
-    const d = new Date(r.date + 'T00:00:00')
-    const dow = d.getDay()
-    const weekend = dow === 0 || dow === 6
-    const effective = (weekend || isHoliday(r.date, holidays) || r.is_sick)
-      ? Number(r.hours_worked)
-      : Number(r.overtime)
-    return s + effective
-  }, 0)
-  const balance = Math.round((carriedIn + totalOvertime) * 100) / 100
-
-  const nextYear = month === 12 ? year + 1 : year
-  const nextMonth = month === 12 ? 1 : month + 1
-
-  const { data: existingNext } = await supabase
-    .from('monthly_overtime')
-    .select('mode')
-    .eq('employee_id', employeeId)
-    .eq('year', nextYear)
-    .eq('month', nextMonth)
-    .maybeSingle()
-
-  const { error: e2 } = await supabase
-    .from('monthly_overtime')
-    .upsert(
-      {
-        employee_id: employeeId,
-        year: nextYear,
-        month: nextMonth,
-        mode: existingNext?.mode ?? 'pay',
-        carried_in: mode === 'carry' ? balance : 0,
-      },
-      { onConflict: 'employee_id,year,month' }
-    )
-  if (e2) return { error: e2.message }
-
-  revalidatePath(`/admin/dochazka/${employeeId}`)
-  return { success: true }
-}
-
-export async function saveMonthNote(employeeId: string, year: number, month: number, note: string) {
   const supabase = await createClient()
 
   const { data: existing } = await supabase
     .from('monthly_overtime')
-    .select('mode, carried_in')
+    .select('note')
     .eq('employee_id', employeeId)
     .eq('year', year)
     .eq('month', month)
@@ -124,14 +69,31 @@ export async function saveMonthNote(employeeId: string, year: number, month: num
   const { error } = await supabase
     .from('monthly_overtime')
     .upsert(
-      {
-        employee_id: employeeId,
-        year,
-        month,
-        note,
-        mode: existing?.mode ?? 'pay',
-        carried_in: existing?.carried_in ?? 0,
-      },
+      { employee_id: employeeId, year, month, mode, carried_in: 0, note: existing?.note ?? null },
+      { onConflict: 'employee_id,year,month' }
+    )
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/dochazka/${employeeId}`)
+  return { success: true }
+}
+
+export async function saveMonthNote(employeeId: string, year: number, month: number, note: string) {
+  const supabase = await createClient()
+
+  // Poznámka nesmí přepsat režim přesčasů — když pro měsíc ještě řádek není,
+  // použije se režim zděděný z dřívějška, aby se nepřetrhl řetěz převodů.
+  const { data: allModes } = await supabase
+    .from('monthly_overtime')
+    .select('year, month, mode')
+    .eq('employee_id', employeeId)
+
+  const mode = resolveOvertimeMode((allModes ?? []) as OvertimeModeEntry[], year, month)
+
+  const { error } = await supabase
+    .from('monthly_overtime')
+    .upsert(
+      { employee_id: employeeId, year, month, note, mode, carried_in: 0 },
       { onConflict: 'employee_id,year,month' }
     )
   if (error) return { error: error.message }

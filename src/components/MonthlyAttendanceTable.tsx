@@ -8,6 +8,7 @@ import WorkModeSwitch from './WorkModeSwitch'
 import { setOvertimeMode, fillMonthWithDefaults, saveMonthNote } from '@/app/admin/dochazka/actions'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
 import { WORK_MODE_LABELS, type WorkMode } from '@/lib/workMode'
+import { effectiveOvertime as dayOvertime, round2 } from '@/lib/carryover'
 
 type Props = {
   employee: Profile
@@ -80,20 +81,14 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
 
   const holidays = getCzechHolidays(year)
 
-  function effectiveOvertime(record: AttendanceRecord, dateStr: string, date: Date): number {
+  function effectiveOvertime(record: AttendanceRecord): number {
     if (isHourly) return 0
-    if (isWeekend(date) || isHoliday(dateStr, holidays) || record.is_sick) {
-      return Number(record.hours_worked)
-    }
-    return Number(record.overtime)
+    return dayOvertime(record)
   }
 
   const totalHours = records.reduce((s, r) => s + Number(r.hours_worked || 0), 0)
-  const totalOvertime = isHourly ? 0 : records.reduce((s, r) => {
-    const date = new Date(r.date + 'T00:00:00')
-    return s + effectiveOvertime(r, r.date, date)
-  }, 0)
-  const totalBalance = Math.round((carriedIn + totalOvertime) * 100) / 100
+  const totalOvertime = isHourly ? 0 : round2(records.reduce((s, r) => s + dayOvertime(r), 0))
+  const totalBalance = round2(carriedIn + totalOvertime)
 
   async function handleFillMonth() {
     if (!confirm(`Vyplnit všechny prázdné pracovní dny v ${CZECH_MONTHS[month - 1]} ${year} hodnotami 07:00–16:00, přestávka 60 min?`)) return
@@ -112,7 +107,8 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     setMode(newMode)
     setModeError(null)
     startTransition(async () => {
-      const result = await setOvertimeMode(employeeId, year, month, newMode, carriedIn)
+      const result = await setOvertimeMode(employeeId, year, month, newMode)
+      if (!result || !('error' in result)) router.refresh()
       if (result && 'error' in result) {
         setMode(previousMode)
         setModeError(`Nepodařilo se uložit: ${result.error}`)
@@ -282,7 +278,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         do_: r?.time_to?.slice(0, 5) ?? '',
         prestav: r !== undefined ? r.break_minutes : null,
         odprac: r ? Number(r.hours_worked) : null,
-        presac: r ? effectiveOvertime(r, dateStr, day) : null,
+        presac: r ? effectiveOvertime(r) : null,
         misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
         typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : 'Pracovní den',
@@ -472,7 +468,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
               const isHol = !isHourly && isHoliday(dateStr, holidays)
               const isVac = !isHourly && record?.location === 'DOVOLENÁ'
               const isSick = !isHourly && (record?.is_sick ?? false)
-              const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
+              const effOt = record ? effectiveOvertime(record) : 0
               // U Hodináře nemá nezapsaný den význam — nezvýrazňuje se žlutě
               const missing = !record && !isHourly
               return (
@@ -544,7 +540,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           const isHol = !isHourly && isHoliday(dateStr, holidays)
           const isVac = !isHourly && record?.location === 'DOVOLENÁ'
           const isSick = !isHourly && (record?.is_sick ?? false)
-          const effOt = record ? effectiveOvertime(record, dateStr, day) : 0
+          const effOt = record ? effectiveOvertime(record) : 0
 
           // U Hodináře je nezapsaný den zcela běžný — žádné zvýraznění, ale i víkend
           // jde doplnit, protože pro něj neplatí pravidla kalendáře
@@ -683,6 +679,10 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           {isPending && <span className="text-xs text-gray-400">Ukládám...</span>}
           {modeError && <span className="text-xs text-red-600">{modeError}</span>}
         </div>
+        <p className="text-xs text-gray-400">
+          Nastavení platí od {CZECH_MONTHS[month - 1]} {year} dál — na konci měsíce se už nemusí nic potvrzovat.
+          Zůstatek se počítá průběžně z docházky, takže pozdější oprava staršího měsíce se propíše i do dalších měsíců.
+        </p>
       </div>
       )}
 
