@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { requireAdmin } from '@/lib/auth'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
 import { resolveOvertimeMode, type OvertimeModeEntry } from '@/lib/carryover'
 
@@ -21,7 +21,9 @@ export async function upsertAttendanceRecord(formData: FormData) {
     return { error: 'Neplatná hodnota přestávky' }
   }
 
-  const supabase = await createClient()
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
   const { error } = await supabase
     .from('attendance_records')
     .upsert(
@@ -35,7 +37,9 @@ export async function upsertAttendanceRecord(formData: FormData) {
 }
 
 export async function deleteAttendanceRecord(id: number, employeeId: string) {
-  const supabase = await createClient()
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
   const { error } = await supabase.from('attendance_records').delete().eq('id', id)
   if (error) return { error: error.message }
   revalidatePath(`/admin/dochazka/${employeeId}`)
@@ -56,7 +60,9 @@ export async function setOvertimeMode(
   month: number,
   mode: 'pay' | 'carry'
 ) {
-  const supabase = await createClient()
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
 
   const { data: existing } = await supabase
     .from('monthly_overtime')
@@ -79,7 +85,9 @@ export async function setOvertimeMode(
 }
 
 export async function saveMonthNote(employeeId: string, year: number, month: number, note: string) {
-  const supabase = await createClient()
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
 
   // Poznámka nesmí přepsat režim přesčasů — když pro měsíc ještě řádek není,
   // použije se režim zděděný z dřívějška, aby se nepřetrhl řetěz převodů.
@@ -103,7 +111,9 @@ export async function saveMonthNote(employeeId: string, year: number, month: num
 }
 
 export async function fillMonthWithDefaults(employeeId: string, year: number, month: number) {
-  const supabase = await createClient()
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
 
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const lastDay = new Date(year, month, 0).getDate()

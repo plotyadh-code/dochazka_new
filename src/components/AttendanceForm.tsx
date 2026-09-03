@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { submitAttendance } from '@/app/dochazka/actions'
 import { resolveWorkModeForDate, type WorkModeEntry } from '@/lib/workMode'
 
 type Props = {
-  employeeId: string
   modeEntries: WorkModeEntry[]
 }
 
@@ -15,7 +14,7 @@ function getTodayDate() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function AttendanceForm({ employeeId, modeEntries }: Props) {
+export default function AttendanceForm({ modeEntries }: Props) {
   const [date, setDate] = useState(getTodayDate())
   const [timeFrom, setTimeFrom] = useState('06:30')
   const [timeTo, setTimeTo] = useState('16:00')
@@ -27,13 +26,11 @@ export default function AttendanceForm({ employeeId, modeEntries }: Props) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   // Režim platný pro zvolené datum — Hodinář zapisuje jen odpracované hodiny,
-  // dovolenou ani nemocenskou nemá
+  // dovolenou ani nemocenskou nemá. (Server si totéž ověřuje znovu.)
   const isHourly = resolveWorkModeForDate(modeEntries, date) === 'hourly'
   const vacation = isHourly ? false : isVacation
-  const sick = isHourly ? false : isSick
 
   function handleVacationChange(checked: boolean) {
     setIsVacation(checked)
@@ -69,36 +66,18 @@ export default function AttendanceForm({ employeeId, modeEntries }: Props) {
     setError('')
     setSuccess(false)
 
-    const { data: existing } = await supabase
-      .from('attendance_records')
-      .select('auto_filled')
-      .eq('employee_id', employeeId)
-      .eq('date', date)
-      .maybeSingle()
+    const result = await submitAttendance({
+      date,
+      timeFrom,
+      timeTo,
+      breakMinutes,
+      location,
+      isVacation,
+      isSick,
+    })
 
-    if (existing && !existing.auto_filled) {
-      setError('Na tento den už máš záznam, který nelze přepsat.')
-      setLoading(false)
-      return
-    }
-
-    const { error } = await supabase.from('attendance_records').upsert(
-      {
-        employee_id: employeeId,
-        date,
-        time_from: vacation ? '07:00' : timeFrom,
-        time_to: vacation ? '15:00' : timeTo,
-        break_minutes: vacation ? 0 : breakMinutes,
-        location: vacation ? 'DOVOLENÁ' : (location || null),
-        is_sick: sick,
-        submitted_at: new Date().toISOString(),
-        auto_filled: false,
-      },
-      { onConflict: 'employee_id,date' }
-    )
-
-    if (error) {
-      setError('Nastala chyba, zkus znovu.')
+    if ('error' in result) {
+      setError(result.error)
       setLoading(false)
       return
     }
@@ -185,7 +164,7 @@ export default function AttendanceForm({ employeeId, modeEntries }: Props) {
             onChange={(e) => setLocation(e.target.value)}
             disabled={vacation}
             className="w-full max-w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-orange-50 disabled:text-orange-600 disabled:border-orange-200 disabled:font-medium"
-            placeholder={sick ? 'volitelné, např. home office' : 'např. Praha, Brno, home office...'}
+            placeholder={isSick && !isHourly ? 'volitelné, např. home office' : 'např. Praha, Brno, home office...'}
           />
         </div>
 

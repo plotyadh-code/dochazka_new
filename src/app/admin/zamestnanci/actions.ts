@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import type { WorkMode } from '@/lib/workMode'
 
@@ -13,6 +13,9 @@ export async function createEmployee(formData: FormData) {
   if (!name || !email || !password) {
     return { error: 'Vyplňte všechna pole' }
   }
+
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
 
   const supabase = createAdminClient()
 
@@ -64,8 +67,10 @@ export async function setWorkMode(
     return { error: 'Neplatný režim' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+
+  const { error } = await auth.supabase
     .from('employee_work_modes')
     .upsert(
       { employee_id: employeeId, year, month, mode, updated_at: new Date().toISOString() },
@@ -81,6 +86,9 @@ export async function setWorkMode(
 }
 
 export async function deleteEmployee(id: string) {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+
   const supabase = createAdminClient()
   const { error } = await supabase.auth.admin.deleteUser(id)
   if (error) return { error: error.message }

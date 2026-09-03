@@ -63,9 +63,16 @@
   - **Režim „Proplatit / Převést" se dědí dopředu** (poslední nastavení platí dál, stejně jako pracovní režim) — na konci měsíce se už nemusí nic potvrzovat.
   - Migrace `007_carryover_recalc.sql` spuštěna v Supabase ✅ — smazala prázdné řádky `monthly_overtime`, které vznikaly jako vedlejší efekt klikání a blokovaly by dědění režimu. Nasazeno (commit `a3a05f0`) ✅
 
+## Zamčení docházky a oprávnění (2026-09-03) 🔐
+Pravidlo: **co zaměstnanec jednou odešle, platí — opravy dělá admin.** Do teď to hlídal jen kód
+v prohlížeči; anon klíč je veřejně v JS bundlu a RLS byla `allow_all`, takže to šlo obejít.
+- Zápis docházky jde přes server action `src/app/dochazka/actions.ts` — `employee_id` se bere z přihlášené session, ne z parametru. Formulář už do DB nesahá přímo.
+- `src/lib/auth.ts` → `requireAdmin()` / `requireUser()`. Všechny admin akce (docházka i zaměstnanci) si teď ověřují roli samy — ochrana ve `layout.tsx` a `proxy.ts` hlídá jen navigaci, server action jde zavolat i bez otevření stránky.
+- Migrace `008_rls_policies.sql` — RLS politiky místo `allow_all` na všech čtyřech tabulkách. Zaměstnanec vidí a mění jen svoje; den s `auto_filled = false` (odeslaný) nepřepíše ani přes API. Funkce `is_admin()` (SECURITY DEFINER kvůli rekurzi na `profiles`). Na konci souboru je připravený rollback.
+- ⚠️ Migraci spustit nejdřív na DEV, otestovat, teprve pak PROD.
+
 ## Nalezené, zatím neřešené 🟠
 - Nemocenská se počítá jako přesčas v plné výši odpracovaných hodin (`is_sick` → `hours_worked` místo `overtime`). Zapsaných 8 h na nemocenské přičte +8 h přesčasu místo 0. Ověřit s účetní, jestli je to záměr.
-- Zaměstnanec může měnit docházku přímo z klienta (`AttendanceForm.tsx:85`) bez serverové kontroly oprávnění.
 
 ## Další kroky 🟡
 
