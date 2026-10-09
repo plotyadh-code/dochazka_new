@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Profile, AttendanceRecord } from '@/types'
+import type { Profile, AttendanceRecord, HourlyAction } from '@/types'
 import AttendanceEditModal from './AttendanceEditModal'
 import WorkModeSwitch from './WorkModeSwitch'
+import HourlyActionsAdmin from './HourlyActionsAdmin'
+import { formatCzk } from '@/lib/money'
 import { setOvertimeMode, fillMonthWithDefaults, saveMonthNote } from '@/app/admin/dochazka/actions'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
 import { WORK_MODE_LABELS, type WorkMode } from '@/lib/workMode'
@@ -20,6 +22,7 @@ type Props = {
   overtimeMode: 'pay' | 'carry'
   note: string
   workMode: WorkMode
+  hourlyActions: HourlyAction[]
 }
 
 type EditDay = {
@@ -56,7 +59,7 @@ function dateLabel(day: Date): string {
   return `${day.getDate()}. ${day.getMonth() + 1}.`
 }
 
-export default function MonthlyAttendanceTable({ employee, records, year, month, employeeId, carriedIn, overtimeMode, note, workMode }: Props) {
+export default function MonthlyAttendanceTable({ employee, records, year, month, employeeId, carriedIn, overtimeMode, note, workMode, hourlyActions }: Props) {
   const router = useRouter()
   const [editDay, setEditDay] = useState<EditDay | null>(null)
   const [mode, setMode] = useState<'pay' | 'carry'>(overtimeMode)
@@ -89,6 +92,9 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
   const totalHours = records.reduce((s, r) => s + Number(r.hours_worked || 0), 0)
   const totalOvertime = isHourly ? 0 : round2(records.reduce((s, r) => s + dayOvertime(r), 0))
   const totalBalance = round2(carriedIn + totalOvertime)
+  const actionsTotal = hourlyActions.reduce((s, a) => s + Number(a.amount), 0)
+  // AKCE se ukazují u Hodináře, nebo kdykoliv za měsíc nějaké existují
+  const showActions = isHourly || hourlyActions.length > 0
 
   async function handleFillMonth() {
     if (!confirm(`Vyplnit všechny prázdné pracovní dny v ${CZECH_MONTHS[month - 1]} ${year} hodnotami 07:00–16:00, přestávka 60 min?`)) return
@@ -222,6 +228,38 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     const modeRow = ws.addRow({ datum: 'Režim: Hodinář — jen odpracované hodiny, bez povinné denní doby a přesčasů' })
     ws.mergeCells(`A${modeRow.number}:H${modeRow.number}`)
     modeRow.font = { italic: true, size: 10, color: { argb: 'FF777777' } }
+
+    // AKCE — placené zakázkou, popis přes sloupce A–E, částka ve sloupci F
+    ws.addRow({})
+    const actionsHeader = ws.addRow({ datum: 'AKCE', odprac: 'Částka (Kč)' })
+    ws.mergeCells(`A${actionsHeader.number}:E${actionsHeader.number}`)
+    actionsHeader.font = { bold: true, size: 12 }
+    actionsHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB2E0DA' } }
+
+    if (hourlyActions.length === 0) {
+      const emptyRow = ws.addRow({ datum: 'Žádné akce' })
+      ws.mergeCells(`A${emptyRow.number}:E${emptyRow.number}`)
+      emptyRow.font = { italic: true, color: { argb: 'FF777777' } }
+    }
+
+    hourlyActions.forEach(a => {
+      const row = ws.addRow({ datum: a.description })
+      ws.mergeCells(`A${row.number}:E${row.number}`)
+      const cell = row.getCell('odprac')
+      cell.value = Number(a.amount)
+      cell.numFmt = '# ##0.00 "Kč"'
+      row.eachCell({ includeEmpty: true }, c => {
+        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }
+      })
+    })
+
+    const actionsTotalRow = ws.addRow({ datum: 'CELKEM AKCE' })
+    ws.mergeCells(`A${actionsTotalRow.number}:E${actionsTotalRow.number}`)
+    const totalCell = actionsTotalRow.getCell('odprac')
+    totalCell.value = actionsTotal
+    totalCell.numFmt = '# ##0.00 "Kč"'
+    actionsTotalRow.font = { bold: true, size: 12 }
+    actionsTotalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB2E0DA' } }
 
     await downloadWorkbook(wb)
   }
@@ -405,7 +443,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       </div>
 
       {/* Souhrn */}
-      <div className={`grid gap-3 ${isHourly ? 'grid-cols-2' : 'grid-cols-3'}`}>
+      <div className="grid gap-3 grid-cols-3">
         <div className="bg-white rounded-xl border p-4 text-center">
           <p className="text-xs text-gray-500 mb-1">{isHourly ? 'Odpracované dny' : 'Záznamy'}</p>
           <p className="text-2xl font-bold">{records.length}</p>
@@ -414,6 +452,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           <p className="text-xs text-gray-500 mb-1">Odpracováno</p>
           <p className="text-2xl font-bold">{totalHours.toFixed(1)}h</p>
         </div>
+        {isHourly && (
+          <div className="bg-white rounded-xl border p-4 text-center">
+            <p className="text-xs text-gray-500 mb-1">Akce celkem</p>
+            <p className="text-2xl font-bold text-teal-700">{formatCzk(actionsTotal)}</p>
+          </div>
+        )}
         {!isHourly && (
           <div className="bg-white rounded-xl border p-4 text-center">
             <p className="text-xs text-gray-500 mb-1">Přesčas</p>
@@ -623,6 +667,16 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
           </div>
         </div>
       </div>
+
+      {/* AKCE — pod kalendářem */}
+      {showActions && (
+        <HourlyActionsAdmin
+          employeeId={employeeId}
+          year={year}
+          month={month}
+          actions={hourlyActions}
+        />
+      )}
 
       {/* Pracovní režim — platí od zobrazeného měsíce dál */}
       <div className="bg-white rounded-xl border p-4 space-y-2">

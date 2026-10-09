@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AttendanceForm from '@/components/AttendanceForm'
+import HourlyActionsForm from '@/components/HourlyActionsForm'
 import LogoutButton from '@/components/LogoutButton'
-import type { AttendanceRecord, WorkModeRow } from '@/types'
+import type { AttendanceRecord, HourlyAction, WorkModeRow } from '@/types'
 import { resolveWorkModeForDate, resolveCurrentWorkMode, WORK_MODE_LABELS } from '@/lib/workMode'
 
 function formatOvertime(overtime: number) {
@@ -35,6 +36,17 @@ export default async function DochazkaPage() {
   const modeEntries = (workModes ?? []) as WorkModeRow[]
   const currentMode = resolveCurrentWorkMode(modeEntries)
 
+  // AKCE — jen u Hodináře
+  const { data: actions } = currentMode === 'hourly'
+    ? await supabase
+        .from('hourly_actions')
+        .select('*')
+        .eq('employee_id', user.id)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false })
+        .order('created_at', { ascending: false })
+    : { data: null }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-4 py-3 flex justify-between items-center sticky top-0 z-10">
@@ -52,6 +64,10 @@ export default async function DochazkaPage() {
 
       <main className="max-w-xl mx-auto p-4 space-y-5">
         <AttendanceForm modeEntries={modeEntries} />
+
+        {currentMode === 'hourly' && (
+          <HourlyActionsForm actions={(actions ?? []) as HourlyAction[]} />
+        )}
 
         <div>
           <h2 className="text-base font-semibold text-gray-900 mb-3">Moje záznamy</h2>

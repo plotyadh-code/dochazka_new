@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/auth'
-import { resolveWorkModeForDate, type WorkModeEntry } from '@/lib/workMode'
+import { parseAmount } from '@/lib/money'
+import { resolveWorkMode, resolveWorkModeForDate, type WorkModeEntry } from '@/lib/workMode'
 
 export type SubmitAttendanceInput = {
   date: string
@@ -88,6 +89,48 @@ export async function submitAttendance(
     },
     { onConflict: 'employee_id,date' }
   )
+
+  if (error) return { error: 'Nastala chyba, zkus to znovu.' }
+
+  revalidatePath('/dochazka')
+  return { success: true }
+}
+
+/**
+ * Zápis AKCE Hodinářem — práce placená zakázkou, ne hodinově.
+ *
+ * Akce nemá datum, patří do měsíce, ve kterém byla odeslána. Odeslanou akci
+ * už hodinář nezmění ani nesmaže — opravy dělá admin (hlídá i RLS, migrace 009).
+ */
+export async function submitHourlyAction(
+  description: string,
+  amountInput: string
+): Promise<{ error: string } | { success: true }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase, userId } = auth
+
+  const text = description.trim()
+  if (!text) return { error: 'Vyplň popis akce.' }
+  const amount = parseAmount(amountInput)
+  if (amount === null) return { error: 'Vyplň částku (kladné číslo).' }
+
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+
+  const { data: workModes } = await supabase
+    .from('employee_work_modes')
+    .select('year, month, mode')
+    .eq('employee_id', userId)
+
+  if (resolveWorkMode((workModes ?? []) as WorkModeEntry[], year, month) !== 'hourly') {
+    return { error: 'Akce může zapisovat jen Hodinář.' }
+  }
+
+  const { error } = await supabase
+    .from('hourly_actions')
+    .insert({ employee_id: userId, year, month, description: text, amount })
 
   if (error) return { error: 'Nastala chyba, zkus to znovu.' }
 

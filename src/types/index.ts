@@ -30,3 +30,13 @@ export type WorkModeRow = {
   month: number
   mode: WorkMode
 }
+
+export type HourlyAction = {
+  id: number
+  employee_id: string
+  year: number
+  month: number
+  description: string
+  amount: number
+  created_at: string
+}

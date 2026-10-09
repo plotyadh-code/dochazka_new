@@ -96,3 +96,4 @@ v prohlížeči; anon klíč je veřejně v JS bundlu a RLS byla `allow_all`, ta
 - Víkendy a svátky: hodiny se počítají stejně, jen řádek má jinou barvu
 - Přesčasy: data připravuje appka, výpočet nuancí řeší účetní externě
 - Tabulka `monthly_overtime` (employee_id, year, month, mode, note): `mode` = „od tohoto měsíce platí Proplatit/Převést", prázdné = Proplatit. Sloupec `carried_in` se **už nepoužívá** (zůstal jen historicky, drží se v něm 0) — zůstatek se počítá v `src/lib/carryover.ts`
+- Tabulka `hourly_actions` (employee_id, year, month, description, amount) = AKCE Hodinářů — práce placená zakázkou. Bez data, patří do měsíce odeslání. Hodinář jen přidává, opravy/mazání jen admin. Migrace `009_hourly_actions.sql` — **spustit v Supabase** (2026-10-09).

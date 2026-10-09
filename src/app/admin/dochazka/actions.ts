@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
 import { resolveOvertimeMode, type OvertimeModeEntry } from '@/lib/carryover'
+import { parseAmount } from '@/lib/money'
 
 export async function upsertAttendanceRecord(formData: FormData) {
   const employee_id = formData.get('employee_id') as string
@@ -148,4 +149,69 @@ export async function fillMonthWithDefaults(employeeId: string, year: number, mo
 
   revalidatePath(`/admin/dochazka/${employeeId}`)
   return { success: true, count: toInsert.length }
+}
+
+// ── AKCE Hodinářů — admin může přidat, opravit i smazat ─────────────────────
+
+function validateAction(description: string, amountInput: string) {
+  const text = description.trim()
+  if (!text) return { error: 'Vyplňte popis akce' } as const
+  const amount = parseAmount(amountInput)
+  if (amount === null) return { error: 'Vyplňte částku (kladné číslo)' } as const
+  return { description: text, amount } as const
+}
+
+export async function addHourlyAction(
+  employeeId: string,
+  year: number,
+  month: number,
+  description: string,
+  amountInput: string
+) {
+  const valid = validateAction(description, amountInput)
+  if ('error' in valid) return { error: valid.error }
+
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
+
+  const { error } = await supabase
+    .from('hourly_actions')
+    .insert({ employee_id: employeeId, year, month, ...valid })
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/dochazka/${employeeId}`)
+  return { success: true }
+}
+
+export async function updateHourlyAction(
+  id: number,
+  employeeId: string,
+  description: string,
+  amountInput: string
+) {
+  const valid = validateAction(description, amountInput)
+  if ('error' in valid) return { error: valid.error }
+
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
+
+  const { error } = await supabase.from('hourly_actions').update(valid).eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/dochazka/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteHourlyAction(id: number, employeeId: string) {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+  const { supabase } = auth
+
+  const { error } = await supabase.from('hourly_actions').delete().eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/dochazka/${employeeId}`)
+  return { success: true }
 }

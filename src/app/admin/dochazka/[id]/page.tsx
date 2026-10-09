@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import MonthlyAttendanceTable from '@/components/MonthlyAttendanceTable'
-import type { Profile, AttendanceRecord, WorkModeRow } from '@/types'
+import type { Profile, AttendanceRecord, HourlyAction, WorkModeRow } from '@/types'
 import { resolveWorkMode } from '@/lib/workMode'
 import { computeCarriedIn, resolveOvertimeMode, type OvertimeMode, type OvertimeSource } from '@/lib/carryover'
 
@@ -63,6 +63,14 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
     .select('employee_id, year, month, mode')
     .eq('employee_id', id)
 
+  const { data: hourlyActions } = await supabase
+    .from('hourly_actions')
+    .select('*')
+    .eq('employee_id', id)
+    .eq('year', year)
+    .eq('month', month)
+    .order('created_at')
+
   const workMode = resolveWorkMode((workModes ?? []) as WorkModeRow[], year, month)
 
   const modeEntries = (overtimeModes ?? []) as { year: number; month: number; mode: OvertimeMode; note: string | null }[]
@@ -107,6 +115,7 @@ export default async function EmployeeDochazkaPage({ params, searchParams }: Pro
           overtimeMode={overtimeMode}
           note={note}
           workMode={workMode}
+          hourlyActions={(hourlyActions ?? []) as HourlyAction[]}
         />
       </main>
     </div>
