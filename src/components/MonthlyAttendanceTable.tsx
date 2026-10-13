@@ -10,7 +10,7 @@ import { formatCzk } from '@/lib/money'
 import { setOvertimeMode, fillMonthWithDefaults, saveMonthNote } from '@/app/admin/dochazka/actions'
 import { getCzechHolidays, isHoliday } from '@/lib/holidays'
 import { WORK_MODE_LABELS, type WorkMode } from '@/lib/workMode'
-import { effectiveOvertime as dayOvertime, round2 } from '@/lib/carryover'
+import { effectiveOvertime as dayOvertime, dayFundHours, round2 } from '@/lib/carryover'
 
 type Props = {
   employee: Profile
@@ -89,7 +89,18 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     return dayOvertime(record)
   }
 
-  const totalHours = records.reduce((s, r) => s + Number(r.hours_worked || 0), 0)
+  // Odpracováno za den — u Zaměstnance jen v rámci fondu (přesčas zvlášť),
+  // u Hodináře skutečné hodiny. Undefined = den bez záznamu i bez fondu.
+  function workedHours(dateStr: string, record: AttendanceRecord | undefined): number | undefined {
+    if (isHourly) return record ? Number(record.hours_worked) : undefined
+    const fund = dayFundHours(dateStr, record)
+    return record || fund > 0 ? fund : undefined
+  }
+
+  const totalHours = round2(days.reduce((s, day) => {
+    const dateStr = fmt(day)
+    return s + (workedHours(dateStr, recordMap.get(dateStr)) ?? 0)
+  }, 0))
   const totalOvertime = isHourly ? 0 : round2(records.reduce((s, r) => s + dayOvertime(r), 0))
   const totalBalance = round2(carriedIn + totalOvertime)
   const actionsTotal = hourlyActions.reduce((s, a) => s + Number(a.amount), 0)
@@ -135,6 +146,17 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     URL.revokeObjectURL(url)
   }
 
+  // Řádek 1 — jméno a měsíc zpracování mezd, řádek 2 — hlavička sloupců.
+  // Sloupce se definují bez `header`, aby hlavička nebyla napevno na řádku 1.
+  function addTitleAndHeader(ws: import('exceljs').Worksheet, columns: { header: string; key: string; width: number; style?: Partial<import('exceljs').Style> }[]) {
+    ws.columns = columns.map(c => ({ key: c.key, width: c.width, style: c.style }))
+    const titleRow = ws.addRow([`${employee.name} — ${CZECH_MONTHS[month - 1]} ${year}`])
+    titleRow.font = { bold: true, size: 14 }
+    titleRow.height = 24
+    ws.mergeCells(1, 1, 1, columns.length)
+    return ws.addRow(columns.map(c => c.header))
+  }
+
   // Export pro Hodináře — jen dny a odpracované hodiny, bez přesčasů,
   // typu dne a převodů. Víkendy jsou jen šedě odlišené kvůli čitelnosti.
   async function handleExportHourly() {
@@ -143,7 +165,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     wb.creator = 'ADH-PLOTY Docházkový systém'
     const ws = wb.addWorksheet(`${CZECH_MONTHS[month - 1]} ${year}`)
 
-    ws.columns = [
+    const headerRow = addTitleAndHeader(ws, [
       { header: 'Datum', key: 'datum', width: 10 },
       { header: 'Den', key: 'den', width: 6 },
       { header: 'Od', key: 'od', width: 8 },
@@ -152,9 +174,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       { header: 'Odpracováno (h)', key: 'odprac', width: 17, style: { numFmt: '0.00' } },
       { header: 'Místo práce', key: 'misto', width: 25 },
       { header: 'Čas zápisu', key: 'zapis', width: 20 },
-    ]
-
-    const headerRow = ws.getRow(1)
+    ])
     headerRow.height = 22
     headerRow.font = { bold: true, size: 12, color: { argb: 'FF1A1A1A' } }
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB2E0DA' } }
@@ -272,7 +292,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     wb.creator = 'ADH-PLOTY Docházkový systém'
     const ws = wb.addWorksheet(`${CZECH_MONTHS[month - 1]} ${year}`)
 
-    ws.columns = [
+    const headerRow = addTitleAndHeader(ws, [
       { header: 'Datum', key: 'datum', width: 10 },
       { header: 'Den', key: 'den', width: 6 },
       { header: 'Od', key: 'od', width: 8 },
@@ -283,10 +303,9 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       { header: 'Místo práce', key: 'misto', width: 25 },
       { header: 'Čas zápisu', key: 'zapis', width: 20 },
       { header: 'Typ dne', key: 'typ', width: 14 },
-    ]
+    ])
 
     // Styl hlavičky
-    const headerRow = ws.getRow(1)
     headerRow.height = 22
     headerRow.font = { bold: true, size: 12, color: { argb: 'FF1A1A1A' } }
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB8CCE4' } }
@@ -315,11 +334,11 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         od: r?.time_from?.slice(0, 5) ?? '',
         do_: r?.time_to?.slice(0, 5) ?? '',
         prestav: r !== undefined ? r.break_minutes : null,
-        odprac: r ? Number(r.hours_worked) : null,
+        odprac: workedHours(dateStr, r) ?? null,
         presac: r ? effectiveOvertime(r) : null,
         misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
-        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : 'Pracovní den',
+        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : isHoliday(dateStr, holidays) ? 'Svátek' : 'Pracovní den',
       })
 
       if (isVacRow) {
@@ -331,7 +350,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       } else if (isWe) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }
         row.font = { color: { argb: 'FF777777' } }
-      } else if (!r) {
+      } else if (!r && !isHoliday(dateStr, holidays)) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } }
       }
 
@@ -513,6 +532,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
               const isVac = !isHourly && record?.location === 'DOVOLENÁ'
               const isSick = !isHourly && (record?.is_sick ?? false)
               const effOt = record ? effectiveOvertime(record) : 0
+              const worked = workedHours(dateStr, record)
               // U Hodináře nemá nezapsaný den význam — nezvýrazňuje se žlutě
               const missing = !record && !isHourly
               return (
@@ -527,7 +547,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                   <td className="px-3 py-2">{record?.time_from?.slice(0, 5) ?? '—'}</td>
                   <td className="px-3 py-2">{record?.time_to?.slice(0, 5) ?? '—'}</td>
                   <td className="px-3 py-2">{record ? `${record.break_minutes} min` : '—'}</td>
-                  <td className="px-3 py-2">{record ? `${Number(record.hours_worked).toFixed(2)}h` : '—'}</td>
+                  <td className="px-3 py-2">{worked !== undefined ? `${worked.toFixed(2)}h` : '—'}</td>
                   {!isHourly && (
                     <td className={`px-3 py-2 font-medium ${record ? (effOt >= 0 ? 'text-green-600' : 'text-red-500') : ''}`}>
                       {record ? `${fmtOvertime(effOt)}h` : '—'}
@@ -606,7 +626,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
             return (
               <div key={dateStr} className="bg-gray-50 rounded-lg border border-gray-100 px-4 py-2 flex justify-between text-gray-400 text-sm">
                 <span>{dateLabel(day)} {CZECH_DAYS[day.getDay()]}</span>
-                <span>{isHol && !isWe ? 'Svátek' : 'Víkend'}</span>
+                <span>{isHol && !isWe ? `Svátek · ${(workedHours(dateStr, record) ?? 0).toFixed(2)}h` : 'Víkend'}</span>
               </div>
             )
           }
@@ -636,7 +656,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
                 <div className="flex items-center gap-3">
                   {record && (
                     <div className="text-right">
-                      <p className="text-sm font-medium">{Number(record.hours_worked).toFixed(2)}h</p>
+                      <p className="text-sm font-medium">{(workedHours(dateStr, record) ?? 0).toFixed(2)}h</p>
                       {!isHourly && (
                         <p className={`text-xs font-medium ${effOt >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                           {fmtOvertime(effOt)}h

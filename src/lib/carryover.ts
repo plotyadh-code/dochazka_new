@@ -62,6 +62,23 @@ export function effectiveOvertime(record: OvertimeSource): number {
   return Number(record.overtime)
 }
 
+/** Denní pracovní fond režimu Zaměstnanec. */
+export const DAILY_FUND_HOURS = 8
+
+/**
+ * Odpracováno za den v rámci pracovního fondu (bez přesčasu):
+ * víkend (i svátek o víkendu) a nemocenská 0, svátek v pracovní den 8 h
+ * i bez záznamu, jinak skutečné hodiny, nejvýš 8 h. Vše navíc je přesčas.
+ */
+export function dayFundHours(date: string, record: { hours_worked: number | string; is_sick: boolean } | undefined): number {
+  const d = new Date(date + 'T00:00:00')
+  if (d.getDay() === 0 || d.getDay() === 6) return 0
+  if (record?.is_sick) return 0
+  if (isHoliday(date, holidaysFor(d.getFullYear()))) return DAILY_FUND_HOURS
+  if (!record) return 0
+  return Math.min(Number(record.hours_worked), DAILY_FUND_HOURS)
+}
+
 /** Součet přesčasů za měsíc. Hodinář přesčasy nemá — vrací 0. */
 export function monthOvertimeTotal(
   records: OvertimeSource[],
