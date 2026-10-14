@@ -34,7 +34,6 @@ export function getCzechHolidays(year: number): Set<string> {
 
   const fixed = [
     `${year}-01-01`,
-    `${year}-01-06`,
     `${year}-05-01`,
     `${year}-05-08`,
     `${year}-07-05`,
