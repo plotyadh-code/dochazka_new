@@ -32,25 +32,27 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('*').eq('id', user.id).single()
+    : { data: null }
+
+  // Bývalý zaměstnanec — odhlásit (smazat session cookies) a zpět na přihlášení.
+  // Přihlášení mu blokuje i ban v Supabase Auth, tohle řeší ještě platnou session.
+  if (user && profile?.is_active === false) {
+    const response = NextResponse.redirect(new URL('/login', request.url))
+    request.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith('sb-')) response.cookies.delete(name)
+    })
+    return response
+  }
+
   if (user && pathname === '/login') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
     const target = profile?.role === 'admin' ? '/admin' : '/dochazka'
     return NextResponse.redirect(new URL(target, request.url))
   }
 
-  if (pathname.startsWith('/admin') && user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    if (profile?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/dochazka', request.url))
-    }
+  if (pathname.startsWith('/admin') && user && profile?.role !== 'admin') {
+    return NextResponse.redirect(new URL('/dochazka', request.url))
   }
 
   return supabaseResponse

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import type { Profile } from '@/types'
+import { splitByActive } from '@/lib/employees'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,25 @@ export default async function AdminDochazkaPage() {
     .from('profiles')
     .select('*')
     .eq('role', 'employee')
-    .order('name')
+
+  const { active, inactive } = splitByActive((employees ?? []) as Profile[])
+
+  function employeeRow(emp: Profile) {
+    const isInactive = emp.is_active === false
+    return (
+      <Link
+        key={emp.id}
+        href={`/admin/dochazka/${emp.id}`}
+        className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors ${isInactive ? 'bg-gray-50' : ''}`}
+      >
+        <div>
+          <p className={`text-sm font-medium ${isInactive ? 'text-gray-500' : ''}`}>{emp.name}</p>
+          {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
+        </div>
+        <span className="text-blue-600 text-sm">Zobrazit →</span>
+      </Link>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -30,7 +49,7 @@ export default async function AdminDochazkaPage() {
       <main className="max-w-3xl mx-auto p-4">
         <h1 className="text-lg font-semibold mb-4">Docházka zaměstnanců</h1>
 
-        {!employees || employees.length === 0 ? (
+        {active.length === 0 && inactive.length === 0 ? (
           <div className="bg-white rounded-xl border p-8 text-center">
             <p className="text-gray-400 text-sm mb-3">Zatím žádní zaměstnanci</p>
             <Link href="/admin/zamestnanci" className="text-blue-600 text-sm hover:underline">
@@ -38,20 +57,22 @@ export default async function AdminDochazkaPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border divide-y">
-            {employees.map((emp: Profile) => (
-              <Link
-                key={emp.id}
-                href={`/admin/dochazka/${emp.id}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-              >
-                <div>
-                  <p className="text-sm font-medium">{emp.name}</p>
-                  {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
+          <div className="space-y-5">
+            {active.length > 0 && (
+              <div className="bg-white rounded-xl border divide-y">
+                {active.map(employeeRow)}
+              </div>
+            )}
+            {inactive.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold mb-3 text-gray-500">
+                  Bývalí zaměstnanci ({inactive.length})
+                </h2>
+                <div className="bg-white rounded-xl border divide-y">
+                  {inactive.map(employeeRow)}
                 </div>
-                <span className="text-blue-600 text-sm">Zobrazit →</span>
-              </Link>
-            ))}
+              </div>
+            )}
           </div>
         )}
       </main>

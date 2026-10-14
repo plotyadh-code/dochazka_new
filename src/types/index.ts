@@ -6,6 +6,8 @@ export type Profile = {
   email?: string
   role: 'admin' | 'employee'
   initial_password?: string
+  /** false = bývalý zaměstnanec (nepřihlásí se, docházka zůstává k náhledu) */
+  is_active?: boolean
   created_at: string
 }
 

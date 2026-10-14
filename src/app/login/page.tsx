@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
+const INACTIVE_MESSAGE = 'Účet je deaktivovaný — obraťte se na vedoucího.'
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,7 +22,8 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(error.message)
+      // Bývalý zaměstnanec má v Supabase Auth zablokované přihlášení (ban)
+      setError(error.code === 'user_banned' || /banned/i.test(error.message) ? INACTIVE_MESSAGE : error.message)
       setLoading(false)
       return
     }
@@ -33,9 +36,16 @@ export default function LoginPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('*')
       .eq('id', data.user.id)
       .single()
+
+    if (profile?.is_active === false) {
+      await supabase.auth.signOut()
+      setError(INACTIVE_MESSAGE)
+      setLoading(false)
+      return
+    }
 
     router.push(profile?.role === 'admin' ? '/admin' : '/dochazka')
     router.refresh()

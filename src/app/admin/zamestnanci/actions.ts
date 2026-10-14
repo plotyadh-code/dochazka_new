@@ -85,6 +85,48 @@ export async function setWorkMode(
   return { success: true }
 }
 
+/**
+ * Aktivní / bývalý zaměstnanec. Bývalému se zablokuje přihlášení (ban v Supabase
+ * Auth), docházka zůstává. Funguje obousměrně — aktivace přihlášení zase povolí.
+ */
+export async function setEmployeeActive(employeeId: string, active: boolean) {
+  if (!employeeId) return { error: 'Chybí zaměstnanec' }
+
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error }
+
+  const supabase = createAdminClient()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', employeeId)
+    .single()
+  if (profile?.role !== 'employee') return { error: 'Lze nastavit jen u zaměstnance' }
+
+  const { error: banError } = await supabase.auth.admin.updateUserById(employeeId, {
+    ban_duration: active ? 'none' : '876000h',
+  })
+  if (banError) return { error: banError.message }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_active: active })
+    .eq('id', employeeId)
+
+  if (error) {
+    // Vrátit přihlášení do původního stavu, ať profil a Auth nejsou v rozporu
+    await supabase.auth.admin.updateUserById(employeeId, {
+      ban_duration: active ? '876000h' : 'none',
+    })
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin/zamestnanci')
+  revalidatePath('/admin/dochazka')
+  return { success: true }
+}
+
 export async function deleteEmployee(id: string) {
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error }

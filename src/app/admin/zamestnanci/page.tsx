@@ -3,9 +3,11 @@ import CreateEmployeeForm from '@/components/CreateEmployeeForm'
 import LogoutButton from '@/components/LogoutButton'
 import PasswordCell from '@/components/PasswordCell'
 import WorkModeSwitch from '@/components/WorkModeSwitch'
+import ActiveToggle from '@/components/ActiveToggle'
 import Link from 'next/link'
 import type { Profile, WorkModeRow } from '@/types'
 import { resolveWorkMode } from '@/lib/workMode'
+import { splitByActive } from '@/lib/employees'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +18,6 @@ export default async function ZamestnnaciPage() {
     .from('profiles')
     .select('*')
     .eq('role', 'employee')
-    .order('name')
 
   const { data: workModes } = await supabase
     .from('employee_work_modes')
@@ -31,6 +32,47 @@ export default async function ZamestnnaciPage() {
     const list = modesByEmployee.get(row.employee_id)
     if (list) list.push(row)
     else modesByEmployee.set(row.employee_id, [row])
+  }
+
+  const { active, inactive } = splitByActive((employees ?? []) as Profile[])
+
+  function employeeCard(emp: Profile) {
+    const isInactive = emp.is_active === false
+    return (
+      <div key={emp.id} className={`px-4 py-3 space-y-2 ${isInactive ? 'bg-gray-50 text-gray-400' : ''}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={`text-sm font-medium ${isInactive ? 'text-gray-500' : ''}`}>{emp.name}</p>
+            {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
+            <PasswordCell password={emp.initial_password} />
+          </div>
+          <Link
+            href={`/admin/dochazka/${emp.id}`}
+            className="text-sm text-blue-600 hover:underline whitespace-nowrap"
+          >
+            Zobrazit docházku →
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t">
+          {!isInactive && (
+            <>
+              <span className="text-xs text-gray-500">Režim:</span>
+              <WorkModeSwitch
+                employeeId={emp.id}
+                year={currentYear}
+                month={currentMonth}
+                mode={resolveWorkMode(modesByEmployee.get(emp.id) ?? [], currentYear, currentMonth)}
+                size="sm"
+                showHint={false}
+              />
+            </>
+          )}
+          <div className={isInactive ? '' : 'ml-auto'}>
+            <ActiveToggle employeeId={emp.id} active={!isInactive} />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -51,50 +93,37 @@ export default async function ZamestnnaciPage() {
 
         <div>
           <h2 className="text-base font-semibold mb-1">
-            Zaměstnanci ({employees?.length ?? 0})
+            Zaměstnanci ({active.length})
           </h2>
           <p className="text-xs text-gray-400 mb-3">
             Režim <strong className="text-gray-500">Zaměstnanec</strong> = 8 h/den, přesčasy, dovolená a nemocenská.
             Režim <strong className="text-gray-500">Hodinář</strong> = jen čisté odpracované hodiny (brigáda, fakturace).
             Přepnutí platí od aktuálního měsíce dál, historie zůstává.
           </p>
-          {!employees || employees.length === 0 ? (
+          {active.length === 0 ? (
             <div className="bg-white rounded-xl border p-8 text-center">
               <p className="text-gray-400 text-sm">Zatím žádní zaměstnanci</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border divide-y">
-              {employees.map((emp: Profile) => (
-                <div key={emp.id} className="px-4 py-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{emp.name}</p>
-                      {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
-                      <PasswordCell password={emp.initial_password} />
-                    </div>
-                    <Link
-                      href={`/admin/dochazka/${emp.id}`}
-                      className="text-sm text-blue-600 hover:underline whitespace-nowrap"
-                    >
-                      Zobrazit docházku →
-                    </Link>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t">
-                    <span className="text-xs text-gray-500">Režim:</span>
-                    <WorkModeSwitch
-                      employeeId={emp.id}
-                      year={currentYear}
-                      month={currentMonth}
-                      mode={resolveWorkMode(modesByEmployee.get(emp.id) ?? [], currentYear, currentMonth)}
-                      size="sm"
-                      showHint={false}
-                    />
-                  </div>
-                </div>
-              ))}
+              {active.map(employeeCard)}
             </div>
           )}
         </div>
+
+        {inactive.length > 0 && (
+          <div>
+            <h2 className="text-base font-semibold mb-1 text-gray-500">
+              Bývalí zaměstnanci ({inactive.length})
+            </h2>
+            <p className="text-xs text-gray-400 mb-3">
+              Nepřihlásí se, docházka zůstává k náhledu. Odškrtnutím „Už nepracuje / vyřazen“ se vrátí mezi aktivní.
+            </p>
+            <div className="bg-white rounded-xl border divide-y">
+              {inactive.map(employeeCard)}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
