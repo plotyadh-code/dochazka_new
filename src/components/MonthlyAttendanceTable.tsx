@@ -157,8 +157,9 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     return ws.addRow(columns.map(c => c.header))
   }
 
-  // Export pro Hodináře — jen dny a odpracované hodiny, bez přesčasů,
-  // typu dne a převodů. Víkendy jsou jen šedě odlišené kvůli čitelnosti.
+  // Export pro Hodináře — jen dny a odpracované hodiny, bez přesčasů
+  // a převodů. Víkendy jsou jen šedě odlišené kvůli čitelnosti, státní svátek
+  // je vypsaný tučně v posledním sloupci.
   async function handleExportHourly() {
     const ExcelJS = (await import('exceljs')).default
     const wb = new ExcelJS.Workbook()
@@ -174,6 +175,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       { header: 'Odpracováno (h)', key: 'odprac', width: 17, style: { numFmt: '0.00' } },
       { header: 'Místo práce', key: 'misto', width: 25 },
       { header: 'Čas zápisu', key: 'zapis', width: 20 },
+      { header: 'Svátek', key: 'svatek', width: 14 },
     ])
     headerRow.height = 22
     headerRow.font = { bold: true, size: 12, color: { argb: 'FF1A1A1A' } }
@@ -204,12 +206,15 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         odprac: r ? Number(r.hours_worked) : null,
         misto: r?.location ?? '',
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
+        svatek: isHoliday(dateStr, holidays) ? 'Státní svátek' : '',
       })
 
       if (isWeekend(day)) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }
         row.font = { color: { argb: 'FF777777' } }
       }
+      const holCell = row.getCell('svatek')
+      holCell.font = { ...holCell.font, bold: true }
 
       row.eachCell({ includeEmpty: true }, cell => {
         cell.border = {
@@ -241,12 +246,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
     })
 
     const daysRow = ws.addRow({ datum: `Odpracovaných dní: ${workedDays}` })
-    ws.mergeCells(`A${daysRow.number}:H${daysRow.number}`)
+    ws.mergeCells(`A${daysRow.number}:I${daysRow.number}`)
     daysRow.font = { bold: true }
     daysRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F5F3' } }
 
     const modeRow = ws.addRow({ datum: 'Režim: Hodinář — jen odpracované hodiny, bez povinné denní doby a přesčasů' })
-    ws.mergeCells(`A${modeRow.number}:H${modeRow.number}`)
+    ws.mergeCells(`A${modeRow.number}:I${modeRow.number}`)
     modeRow.font = { italic: true, size: 10, color: { argb: 'FF777777' } }
 
     // AKCE — placené zakázkou, popis přes sloupce A–E, částka ve sloupci F
@@ -327,6 +332,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
 
       const isVacRow = r?.location === 'DOVOLENÁ'
       const isSickRow = r?.is_sick ?? false
+      const isHolRow = isHoliday(dateStr, holidays)
 
       const row = ws.addRow({
         datum: dateLabel(day),
@@ -338,7 +344,7 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
         presac: r ? effectiveOvertime(r) : null,
         misto: isVacRow ? 'DOVOLENÁ' : (r?.location ?? ''),
         zapis: r?.submitted_at ? new Date(r.submitted_at).toLocaleString('cs-CZ') : '',
-        typ: isWe ? 'Víkend' : isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : isHoliday(dateStr, holidays) ? 'Svátek' : 'Pracovní den',
+        typ: isVacRow ? 'Dovolená' : isSickRow ? 'Nemocenská' : isHolRow ? 'Státní svátek' : isWe ? 'Víkend' : 'Pracovní den',
       })
 
       if (isVacRow) {
@@ -350,8 +356,12 @@ export default function MonthlyAttendanceTable({ employee, records, year, month,
       } else if (isWe) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }
         row.font = { color: { argb: 'FF777777' } }
-      } else if (!r && !isHoliday(dateStr, holidays)) {
+      } else if (!r && !isHolRow) {
         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } }
+      }
+      if (isHolRow && !isVacRow && !isSickRow) {
+        const typCell = row.getCell('typ')
+        typCell.font = { ...typCell.font, bold: true }
       }
 
       row.eachCell({ includeEmpty: true }, cell => {

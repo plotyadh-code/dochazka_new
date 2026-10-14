@@ -50,15 +50,16 @@ export function round2(value: number): number {
 }
 
 /**
- * Přesčas za jeden den. O víkendu, o svátku a na nemocenské se do přesčasu
- * počítají celé odpracované hodiny (není povinných 8 h, které by se odečítaly).
+ * Přesčas za jeden den. O víkendu (i svátku o víkendu) a na nemocenské se do
+ * přesčasu počítají celé odpracované hodiny (není povinných 8 h, které by se
+ * odečítaly). Svátek v pracovní den: jen hodiny nad 8 h, méně než 8 h přesčas
+ * nesnižuje.
  */
 export function effectiveOvertime(record: OvertimeSource): number {
   const date = new Date(record.date + 'T00:00:00')
   const weekend = date.getDay() === 0 || date.getDay() === 6
-  if (weekend || isHoliday(record.date, holidaysFor(date.getFullYear())) || record.is_sick) {
-    return Number(record.hours_worked)
-  }
+  if (weekend || record.is_sick) return Number(record.hours_worked)
+  if (isHoliday(record.date, holidaysFor(date.getFullYear()))) return Math.max(Number(record.overtime), 0)
   return Number(record.overtime)
 }
 
@@ -67,15 +68,14 @@ export const DAILY_FUND_HOURS = 8
 
 /**
  * Odpracováno za den v rámci pracovního fondu (bez přesčasu):
- * víkend (i svátek o víkendu) a nemocenská 0, svátek v pracovní den 8 h
- * i bez záznamu, jinak skutečné hodiny, nejvýš 8 h. Vše navíc je přesčas.
+ * běžný víkend a nemocenská 0, jinak skutečné hodiny, nejvýš 8 h — platí i pro
+ * svátek (v pracovní den i o víkendu); svátek bez záznamu 0. Vše navíc je přesčas.
  */
 export function dayFundHours(date: string, record: { hours_worked: number | string; is_sick: boolean } | undefined): number {
   const d = new Date(date + 'T00:00:00')
-  if (d.getDay() === 0 || d.getDay() === 6) return 0
-  if (record?.is_sick) return 0
-  if (isHoliday(date, holidaysFor(d.getFullYear()))) return DAILY_FUND_HOURS
-  if (!record) return 0
+  const weekend = d.getDay() === 0 || d.getDay() === 6
+  if (weekend && !isHoliday(date, holidaysFor(d.getFullYear()))) return 0
+  if (!record || record.is_sick) return 0
   return Math.min(Number(record.hours_worked), DAILY_FUND_HOURS)
 }
 
