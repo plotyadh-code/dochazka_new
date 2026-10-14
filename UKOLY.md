@@ -71,8 +71,16 @@ v prohlížeči; anon klíč je veřejně v JS bundlu a RLS byla `allow_all`, ta
 - Migrace `008_rls_policies.sql` — RLS politiky místo `allow_all` na všech čtyřech tabulkách. Zaměstnanec vidí a mění jen svoje; den s `auto_filled = false` (odeslaný) nepřepíše ani přes API. Funkce `is_admin()` (SECURITY DEFINER kvůli rekurzi na `profiles`). Na konci souboru je připravený rollback.
 - ⚠️ Migraci spustit nejdřív na DEV, otestovat, teprve pak PROD.
 
-## Nalezené, zatím neřešené 🟠
-- Nemocenská se počítá jako přesčas v plné výši odpracovaných hodin (`is_sick` → `hours_worked` místo `overtime`). Zapsaných 8 h na nemocenské přičte +8 h přesčasu místo 0. Ověřit s účetní, jestli je to záměr.
+## Hotovo (2026-10-14) ✅
+- **Pravidla svátků podle mzdové účetní** (`src/lib/carryover.ts`, commit `12072db`):
+  - Svátek v pracovní den: Odpracováno (fond) = skutečné hodiny, max 8 h; přesčas jen hodiny nad 8 h. Méně než 8 h přesčas nesnižuje (ani plus, ani mínus).
+  - Svátek o víkendu: fond = skutečné hodiny, max 8 h; přesčas = všechny odpracované hodiny (hodiny do 8 h jsou tedy ve fondu i v přesčasu — záměr).
+  - Svátek bez zápisu = fond 0. Nemoc ve svátek = fond 0, přesčas jako u nemocenské (všechny hodiny).
+  - Excel: „Státní svátek" tučně — u Zaměstnance ve sloupci Typ dne (i když svátek padne na víkend), u Hodináře v novém posledním sloupci Svátek.
+- **6. 1. odstraněn ze státních svátků** — v ČR to svátek není (commit `762f725`). Seznam ověřen proti přehledu svátků 2027.
+- Výpočet se dělá vždy z celé historie, takže nová pravidla platí i zpětně pro minulé měsíce — uživatelka potvrdila, že je to v pořádku.
+- Nemocenská (dřív „nalezené, neřešené"): potvrzeno 2026-10-13, že fond 0 a odpracované hodiny celé do přesčasu je správně.
+- ⚠️ Netestováno v prohlížeči — projít jeden Excel export za měsíc se svátkem (Zaměstnanec i Hodinář).
 
 ## Další kroky 🟡
 
@@ -81,9 +89,8 @@ v prohlížeči; anon klíč je veřejně v JS bundlu a RLS byla `allow_all`, ta
 - Starší záznamy archivovat (nemazat z DB, jen označit)
 
 ### 4. Svátky v měsíčním přehledu
-- Řádek svátku barevně odlišit (stejně jako víkend)
-- Hodiny počítat stejně jako pracovní den
-- Seznam státních svátků ČR natvrdo nebo konfigurovatelně
+- ~~Řádek svátku barevně odlišit~~ (hotovo — šedě na webu, tučně „Státní svátek" v Excelu)
+- ~~Pravidla výpočtu~~ (hotovo 2026-10-14, viz výše)
 
 ## Poznámky
 - Trigger `on_auth_user_created` byl smazán (způsoboval chyby) — profily vytváří app
