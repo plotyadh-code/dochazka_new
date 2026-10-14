@@ -82,6 +82,13 @@ v prohlížeči; anon klíč je veřejně v JS bundlu a RLS byla `allow_all`, ta
 - Nemocenská (dřív „nalezené, neřešené"): potvrzeno 2026-10-13, že fond 0 a odpracované hodiny celé do přesčasu je správně.
 - ⚠️ Netestováno v prohlížeči — projít jeden Excel export za měsíc se svátkem (Zaměstnanec i Hodinář).
 
+## Bývalí zaměstnanci a řazení (2026-10-14) — commit `5d02c67`
+- Seznamy v Zaměstnancích i Docházce řazené podle **příjmení** (poslední slovo jména, česká abeceda — CH za H). `src/lib/employees.ts`.
+- Zaškrtávátko **„Už nepracuje / vyřazen"** jen na kartě v Zaměstnancích → zaměstnanec se přesune do tabulky **Bývalí zaměstnanci** (pod aktivními, zašedle, i v Docházce). Docházka a exporty zůstávají k náhledu.
+- Bývalý se **nepřihlásí**: ban v Supabase Auth (`auth.admin.updateUserById`, `ban_duration`) + `proxy.ts` odhlásí ještě platnou session. Odškrtnutím se vše vrátí (obousměrně).
+- Sloupec `profiles.is_active` — migrace `010_employee_active.sql` — 🔴 **spustit v Supabase**. Bez ní appka funguje dál (všichni aktivní), jen zaškrtnutí skončí chybou.
+- ⚠️ Netestováno v prohlížeči: zaškrtnout testovacího zaměstnance → přesun + pokus o přihlášení → odškrtnout → přihlášení funguje.
+
 ## Další kroky 🟡
 
 ### 3. Archivace dokumentů (Excel)
